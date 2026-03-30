@@ -159,6 +159,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".8"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".6"/></svg>
       Özet
     </div>
+    <div class="nav-item" onclick="switchPage('planlanan',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="3" rx="1" fill="currentColor" opacity=".6"/><rect x="1" y="6" width="9" height="2" rx="1" fill="currentColor" opacity=".4"/><rect x="1" y="10" width="11" height="2" rx="1" fill="currentColor" opacity=".4"/><rect x="1" y="14" width="7" height="2" rx="1" fill="currentColor" opacity=".3"/></svg>
+      Planlanan
+    </div>
     <div class="nav-item" onclick="switchPage('butce',this)">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 12L6 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Bütçe & Gerçekleşen
@@ -445,12 +449,20 @@ const INCOME_USD    = PLAN_INC_TRY.map(v=>Math.round(v/FX));
 const ACTUAL_EXP_USD= PLAN_EXP_TRY.map(v=>Math.round(v/FX));
 
 const BUDGET_DATA = [
-  {cat:'Kira',planned:234,actual:234},{cat:'Market',planned:260,actual:298},
-  {cat:'Ulaşım',planned:130,actual:109},{cat:'Eğlence',planned:100,actual:136},
-  {cat:'Faturalar',planned:180,actual:167},{cat:'Sağlık',planned:80,actual:203},
-  {cat:'Eğitim',planned:220,actual:220},{cat:'Giyim',planned:60,actual:89},
-  {cat:'Diğer',planned:80,actual:82},
+  {cat:'Kira',planned:0,actual:0},{cat:'Market',planned:0,actual:0},
+  {cat:'Ulaşım',planned:0,actual:0},{cat:'Eğlence',planned:0,actual:0},
+  {cat:'Faturalar',planned:0,actual:0},{cat:'Sağlık',planned:0,actual:0},
+  {cat:'Eğitim',planned:0,actual:0},{cat:'Giyim',planned:0,actual:0},
+  {cat:'Diğer',planned:0,actual:0},
 ];
+
+// Planlanan veriler — aylık, kategori bazlı (₺)
+const INC_CATS = ['Maaş','Kira Geliri','Ek Gelir','Temettü','Diğer Gelir'];
+const EXP_CATS = ['Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'];
+
+// Her kategori için 12 aylık planlanan tutar dizisi
+let PLAN_INC_CATS = INC_CATS.map(cat=>({cat, monthly:new Array(12).fill(0)}));
+let PLAN_EXP_CATS = EXP_CATS.map(cat=>({cat, monthly:new Array(12).fill(0)}));
 
 let allTransactions = [];
 CREDIT_CARDS.forEach(cc=>cc.txns.forEach(t=>allTransactions.push({...t,card:cc.label,bank:cc.bank})));
@@ -1300,7 +1312,194 @@ function refreshMemberDropdowns(){
   if(iSel) iSel.innerHTML=MEMBERS.map(m=>`<option>${m.name}</option>`).join('');
 }
 
-// ─── CHART INITS ─────────────────────────────────────────────────────────────
+function pagePlanlanan(){
+  // Gerçekleşen toplamları hesapla
+  const actInc={};
+  INCOME_RECORDS.forEach(r=>{
+    const c=r.cat||'Diğer Gelir';
+    actInc[c]=(actInc[c]||0)+(r.try||Math.round((r.usd||0)*(r.rate||FX)));
+  });
+  const actExp={};
+  allTransactions.forEach(t=>{
+    const c=t.cat||'Diğer';
+    actExp[c]=(actExp[c]||0)+(t.try||Math.round((t.usd||0)*(t.rate||FX)));
+  });
+
+  // Aylık plan toplamları
+  const planIncTotal=PLAN_INC_CATS.reduce((s,c)=>s+c.monthly.reduce((a,b)=>a+b,0),0);
+  const planExpTotal=PLAN_EXP_CATS.reduce((s,c)=>s+c.monthly.reduce((a,b)=>a+b,0),0);
+  const actIncTotal=Object.values(actInc).reduce((a,b)=>a+b,0);
+  const actExpTotal=Object.values(actExp).reduce((a,b)=>a+b,0);
+
+  const catRow=(cat,planArr,actTRY,color)=>{
+    const planTotal=planArr.reduce((a,b)=>a+b,0);
+    const diff=actTRY-planTotal;
+    const pct=planTotal>0?Math.round(actTRY/planTotal*100):0;
+    const over=diff>0;
+    const barColor=over?'var(--red)':actTRY>0?'var(--green)':'var(--bg3)';
+    const barW=planTotal>0?Math.min(100,Math.round(actTRY/planTotal*100)):0;
+    return`<tr>
+      <td style="font-weight:500">${cat}</td>
+      <td style="font-family:var(--mono);font-weight:600;color:${color}">${fmtTRY(planTotal)}</td>
+      <td style="font-family:var(--mono)">${fmtTRY(actTRY||0)}</td>
+      <td>
+        <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:60px">
+          <div style="height:100%;width:${barW}%;background:${barColor};border-radius:3px"></div>
+        </div>
+      </td>
+      <td style="font-family:var(--mono);color:${over?'var(--red)':actTRY>0?'var(--green)':'var(--text3)'}">
+        ${actTRY>0?(over?'▲ +':'▼ ')+fmtTRY(Math.abs(diff)):'—'}
+      </td>
+      <td><span class="badge ${pct>=100?'badge-red':pct>0?'badge-green':'badge-amber'}" style="font-family:var(--mono)">${pct}%</span></td>
+      <td><button onclick="openCatPlanModal('${cat}')" style="background:none;border:1px solid var(--border2);border-radius:5px;cursor:pointer;color:var(--text3);font-size:10px;padding:2px 8px;font-family:var(--font)">✎ Düzenle</button></td>
+    </tr>`;
+  };
+
+  return`
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric c-green"><div class="m-label">Planlanan Gelir (Yıllık)</div><div class="m-value">${fmtTRY(planIncTotal)}</div><div class="m-sub">${fmtUSD(planIncTotal/FX,0)}</div></div>
+    <div class="metric c-blue"><div class="m-label">Gerçekleşen Gelir</div><div class="m-value">${fmtTRY(actIncTotal)}</div><div class="m-sub">${fmtUSD(actIncTotal/FX,0)}</div></div>
+    <div class="metric c-red"><div class="m-label">Planlanan Gider (Yıllık)</div><div class="m-value">${fmtTRY(planExpTotal)}</div><div class="m-sub">${fmtUSD(planExpTotal/FX,0)}</div></div>
+    <div class="metric c-amber"><div class="m-label">Gerçekleşen Gider</div><div class="m-value">${fmtTRY(actExpTotal)}</div><div class="m-sub">${fmtUSD(actExpTotal/FX,0)}</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title" style="color:var(--green)">Gelir Kategorileri</div><div class="card-sub">Planlanan vs Gerçekleşen · Her kategoriye tıklayarak aylık plan girin</div></div>
+        <button class="btn btn-primary" onclick="openBulkPlanModal('gelir')">+ Toplu Gir</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Kategori</th><th>Planlanan</th><th>Gerçekleşen</th><th>İlerleme</th><th>Fark</th><th>%</th><th style="width:80px"></th></tr></thead>
+        <tbody>
+          ${PLAN_INC_CATS.map(c=>catRow(c.cat,c.monthly,actInc[c.cat]||0,'var(--green)')).join('')}
+        </tbody>
+        <tfoot><tr style="border-top:2px solid var(--border2)">
+          <td style="font-weight:600">Toplam</td>
+          <td style="font-family:var(--mono);font-weight:600;color:var(--green)">${fmtTRY(planIncTotal)}</td>
+          <td style="font-family:var(--mono);font-weight:600">${fmtTRY(actIncTotal)}</td>
+          <td colspan="4"></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title" style="color:var(--red)">Gider Kategorileri</div><div class="card-sub">Planlanan vs Gerçekleşen</div></div>
+        <button class="btn btn-ghost" onclick="openBulkPlanModal('gider')">+ Toplu Gir</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Kategori</th><th>Planlanan</th><th>Gerçekleşen</th><th>İlerleme</th><th>Fark</th><th>%</th><th style="width:80px"></th></tr></thead>
+        <tbody>
+          ${PLAN_EXP_CATS.map(c=>catRow(c.cat,c.monthly,actExp[c.cat]||0,'var(--red)')).join('')}
+        </tbody>
+        <tfoot><tr style="border-top:2px solid var(--border2)">
+          <td style="font-weight:600">Toplam</td>
+          <td style="font-family:var(--mono);font-weight:600;color:var(--red)">${fmtTRY(planExpTotal)}</td>
+          <td style="font-family:var(--mono);font-weight:600">${fmtTRY(actExpTotal)}</td>
+          <td colspan="4"></td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>`;
+}
+
+// Kategori bazlı aylık plan modalı
+window.openCatPlanModal=function(cat){
+  const isInc=INC_CATS.includes(cat);
+  const arr=isInc?PLAN_INC_CATS:PLAN_EXP_CATS;
+  const entry=arr.find(c=>c.cat===cat);
+  if(!entry) return;
+  const color=isInc?'var(--green)':'var(--red)';
+  const rows=MONTHS_LABELS.map((m,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;font-weight:500;min-width:36px;color:var(--accent)">${m}</span>
+      <input class="form-input" type="number" id="cp-${i}" value="${entry.monthly[i]||''}" placeholder="0" style="flex:1;padding:6px 10px;font-size:12px">
+      <span style="font-size:10px;color:var(--text3);min-width:60px;text-align:right" id="cp-usd-${i}">${entry.monthly[i]>0?fmtUSD(entry.monthly[i]/FX,0):''}</span>
+    </div>`).join('');
+
+  const html=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:${color}">${cat} — Aylık Plan (₺)</div>
+    <div style="background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--text3)">
+      Her ay için planlanan tutarı girin. Boş bıraktığınız aylar 0 olarak alınır.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input class="form-input" type="number" id="cp-fill-val" placeholder="Tüm aylara aynı değeri gir..." style="flex:1;font-size:12px">
+      <button class="btn btn-ghost btn-sm" onclick="fillAllMonths()">Doldur</button>
+    </div>
+    ${rows}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveCatPlan('${cat}')">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.fillAllMonths=function(){
+  const val=parseFloat(document.getElementById('cp-fill-val')?.value)||0;
+  MONTHS_LABELS.forEach((_,i)=>{
+    const el=document.getElementById(`cp-${i}`);
+    if(el){el.value=val||'';const usd=document.getElementById(`cp-usd-${i}`);if(usd)usd.textContent=val>0?fmtUSD(val/FX,0):'';}
+  });
+};
+
+window.saveCatPlan=function(cat){
+  const isInc=INC_CATS.includes(cat);
+  const arr=isInc?PLAN_INC_CATS:PLAN_EXP_CATS;
+  const entry=arr.find(c=>c.cat===cat);
+  if(!entry) return;
+  MONTHS_LABELS.forEach((_,i)=>{
+    entry.monthly[i]=parseFloat(document.getElementById(`cp-${i}`)?.value)||0;
+  });
+  // PLAN_INC_TRY ve PLAN_EXP_TRY'yi güncelle
+  PLAN_INC_TRY.forEach((_,i)=>{ PLAN_INC_TRY[i]=PLAN_INC_CATS.reduce((s,c)=>s+c.monthly[i],0); });
+  PLAN_EXP_TRY.forEach((_,i)=>{ PLAN_EXP_TRY[i]=PLAN_EXP_CATS.reduce((s,c)=>s+c.monthly[i],0); });
+  closeDynModal();
+  switchPage('planlanan',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('planlanan'))n.classList.add('active');});
+};
+
+// Toplu giriş modalı
+window.openBulkPlanModal=function(type){
+  const isInc=type==='gelir';
+  const arr=isInc?PLAN_INC_CATS:PLAN_EXP_CATS;
+  const color=isInc?'var(--green)':'var(--red)';
+  const html=`<div class="modal" style="width:560px" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:${color}">${isInc?'Gelir':'Gider'} Planı — Toplu Giriş</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Her kategori için aylık tutarı girin (₺). Tüm yıl boyunca sabit tutarsa aynı değeri girin.</div>
+    ${arr.map(c=>`
+    <div style="margin-bottom:12px;background:var(--bg3);border-radius:8px;padding:10px 12px">
+      <div style="font-size:12px;font-weight:600;color:${color};margin-bottom:8px">${c.cat}</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
+        ${MONTHS_LABELS.map((m,i)=>`<div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">${m}</div>
+          <input class="form-input" type="number" id="bulk-${c.cat.replace(/\s/g,'_')}-${i}" value="${c.monthly[i]||''}" placeholder="0" style="padding:4px 6px;font-size:11px">
+        </div>`).join('')}
+      </div>
+    </div>`).join('')}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveBulkPlan('${type}')">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveBulkPlan=function(type){
+  const isInc=type==='gelir';
+  const arr=isInc?PLAN_INC_CATS:PLAN_EXP_CATS;
+  arr.forEach(c=>{
+    MONTHS_LABELS.forEach((_,i)=>{
+      const id=`bulk-${c.cat.replace(/\s/g,'_')}-${i}`;
+      c.monthly[i]=parseFloat(document.getElementById(id)?.value)||0;
+    });
+  });
+  PLAN_INC_TRY.forEach((_,i)=>{ PLAN_INC_TRY[i]=PLAN_INC_CATS.reduce((s,c)=>s+c.monthly[i],0); });
+  PLAN_EXP_TRY.forEach((_,i)=>{ PLAN_EXP_TRY[i]=PLAN_EXP_CATS.reduce((s,c)=>s+c.monthly[i],0); });
+  closeDynModal();
+  switchPage('planlanan',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('planlanan'))n.classList.add('active');});
+};
 function initCharts(page){
   if(page==='ozet'){
     destroyChart('ozBudgetLine');
@@ -1542,8 +1741,8 @@ window.markEkstreOdendi=function(eid){
 
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const PAGE_TITLES={ozet:'Genel Özet',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',kisiler:'Aile Üyeleri'};
-const PAGE_FNS={ozet:pageOzet,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,kisiler:pageKisiler};
+const PAGE_TITLES={ozet:'Genel Özet',planlanan:'Planlanan Bütçe',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',kisiler:'Aile Üyeleri'};
+const PAGE_FNS={ozet:pageOzet,planlanan:pagePlanlanan,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,kisiler:pageKisiler};
 let currentPage='ozet';
 
 function switchPage(name,el){
@@ -2132,6 +2331,8 @@ function collectState(){
     BUDGET_DATA,
     PLAN_INC_TRY:[...PLAN_INC_TRY],
     PLAN_EXP_TRY:[...PLAN_EXP_TRY],
+    PLAN_INC_CATS:PLAN_INC_CATS.map(c=>({cat:c.cat,monthly:[...c.monthly]})),
+    PLAN_EXP_CATS:PLAN_EXP_CATS.map(c=>({cat:c.cat,monthly:[...c.monthly]})),
     BANK_MOVEMENTS: window.BANK_MOVEMENTS||[],
     PAID_EKSTRES: [...PAID_EKSTRES],
     savedAt: new Date().toISOString(),
@@ -2153,6 +2354,8 @@ function applyState(s){
   if(s.BUDGET_DATA) BUDGET_DATA.splice(0,BUDGET_DATA.length,...s.BUDGET_DATA);
   if(s.PLAN_INC_TRY) PLAN_INC_TRY.splice(0,12,...s.PLAN_INC_TRY);
   if(s.PLAN_EXP_TRY) PLAN_EXP_TRY.splice(0,12,...s.PLAN_EXP_TRY);
+  if(s.PLAN_INC_CATS) PLAN_INC_CATS.forEach((c,i)=>{if(s.PLAN_INC_CATS[i])c.monthly=[...s.PLAN_INC_CATS[i].monthly];});
+  if(s.PLAN_EXP_CATS) PLAN_EXP_CATS.forEach((c,i)=>{if(s.PLAN_EXP_CATS[i])c.monthly=[...s.PLAN_EXP_CATS[i].monthly];});
   if(s.BANK_MOVEMENTS) window.BANK_MOVEMENTS=s.BANK_MOVEMENTS;
   if(s.PAID_EKSTRES) PAID_EKSTRES=new Set(s.PAID_EKSTRES);
 }
