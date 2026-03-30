@@ -431,7 +431,10 @@ let PLAN_EXP_TRY  = [50000,50000,52000,50000,50000,50000,50000,53000,55000,50000
 function getActualByMonth(){
   const incByMonth=new Array(12).fill(0);
   const expByMonth=new Array(12).fill(0);
+  const alacakByMonth=new Array(12).fill(0);
+  const verecekByMonth=new Array(12).fill(0);
   const MN_IDX={Nis:0,May:1,Haz:2,Tem:3,Ağu:4,Eyl:5,Eki:6,Kas:7,Ara:8,Oca:9,Şub:10,Mar:11};
+
   INCOME_RECORDS.forEach(r=>{
     const parts=(r.date||'').split(' ');
     const mo=MN_IDX[parts[1]];
@@ -442,7 +445,16 @@ function getActualByMonth(){
     const mo=MN_IDX[parts[1]];
     if(mo!=null) expByMonth[mo]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
   });
-  return{incByMonth,expByMonth};
+  // Alacak/Verecek — bekleyen kayıtları ödeme tarihine göre ilgili aya ekle
+  ALACAK_VERECEK.filter(a=>a.status!=='ödendi').forEach(a=>{
+    const parts=(a.date||'').split(' ');
+    const mo=MN_IDX[parts[1]];
+    if(mo==null) return;
+    const tryAmt=a.try||Math.round((a.usd||0)*(a.rate||FX));
+    if(a.type==='alacak') alacakByMonth[mo]+=tryAmt;
+    else verecekByMonth[mo]+=tryAmt;
+  });
+  return{incByMonth,expByMonth,alacakByMonth,verecekByMonth};
 }
 const PLAN_EXP_USD  = PLAN_EXP_TRY.map(v=>Math.round(v/FX));
 const INCOME_USD    = PLAN_INC_TRY.map(v=>Math.round(v/FX));
@@ -1519,9 +1531,9 @@ window.saveBulkPlan=function(type){
 function initCharts(page){
   if(page==='ozet'){
     destroyChart('ozBudgetLine');
-    const {incByMonth,expByMonth}=getActualByMonth();
-    const planIncTRY=PLAN_INC_TRY;
-    const planExpTRY=PLAN_EXP_TRY;
+    const {incByMonth,expByMonth,alacakByMonth,verecekByMonth}=getActualByMonth();
+    const planIncTRY=PLAN_INC_TRY.map((v,i)=>v+(alacakByMonth[i]||0));
+    const planExpTRY=PLAN_EXP_TRY.map((v,i)=>v+(verecekByMonth[i]||0));
     const actIncTRY=incByMonth.map(v=>v||null);
     const actExpTRY=expByMonth.map(v=>v||null);
     new Chart($('ozBudgetLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
