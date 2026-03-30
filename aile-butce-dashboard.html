@@ -876,10 +876,8 @@ window.openCardSettingsModal=function(idx){
           ${[1,5,8,10,12,14,15,18,20,22,25,28].map(d=>`<option value="${d}" ${cc&&cc.cutDay===d?'selected':''}>${d}. gün</option>`).join('')}
         </select>
       </div>
-      <div class="form-group"><label class="form-label">Son Ödeme (kesim + gün)</label>
-        <select class="form-input" id="cc-payoffset">
-          ${[7,10,14,17,20].map(d=>`<option value="${d}" ${cc&&cc.payOffset===d?'selected':d===10?'selected':''}>+${d} gün</option>`).join('')}
-        </select>
+      <div class="form-group"><label class="form-label">Son Ödeme (kesim + kaç gün)</label>
+        <input class="form-input" type="number" id="cc-payoffset" min="1" max="30" value="${cc&&cc.payOffset?cc.payOffset:10}" placeholder="10">
       </div>
     </div>
     <div class="form-group"><label class="form-label">Kart Rengi</label>
