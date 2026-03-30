@@ -599,7 +599,7 @@ function pageOzet(){
 
   <div class="card" style="margin-bottom:14px">
     <div class="card-header">
-      <div><div class="card-title">Gelir & Gider — 12 Aylık Görünüm</div><div class="card-sub">Planlanan vs Gerçekleşen · ₺ bazlı · Veri girilmeyen aylar boş</div></div>
+      <div><div class="card-title">Gelir & Gider — 12 Aylık Kümülatif</div><div class="card-sub">Planlanan vs Gerçekleşen · ₺ bazlı · Alacak/Verecek dahil</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text3);align-items:center">
         <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #34d399;margin-right:4px;vertical-align:middle"></span>Plan Gelir</span>
         <span><span style="display:inline-block;width:14px;height:3px;background:#34d399;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerç. Gelir</span>
@@ -1532,10 +1532,19 @@ function initCharts(page){
   if(page==='ozet'){
     destroyChart('ozBudgetLine');
     const {incByMonth,expByMonth,alacakByMonth,verecekByMonth}=getActualByMonth();
-    const planIncTRY=PLAN_INC_TRY.map((v,i)=>v+(alacakByMonth[i]||0));
-    const planExpTRY=PLAN_EXP_TRY.map((v,i)=>v+(verecekByMonth[i]||0));
-    const actIncTRY=incByMonth.map(v=>v||null);
-    const actExpTRY=expByMonth.map(v=>v||null);
+
+    // Kümülatif hesapla
+    const cumulate=(arr,nullEmpty=false)=>{
+      let sum=0; return arr.map(v=>{
+        if(nullEmpty&&!v) return null;
+        sum+=v||0; return sum||null;
+      });
+    };
+
+    const planIncTRY=cumulate(PLAN_INC_TRY.map((v,i)=>v+(alacakByMonth[i]||0)));
+    const planExpTRY=cumulate(PLAN_EXP_TRY.map((v,i)=>v+(verecekByMonth[i]||0)));
+    const actIncTRY=cumulate(incByMonth,true);
+    const actExpTRY=cumulate(expByMonth,true);
     new Chart($('ozBudgetLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
       {label:'Planlanan Gelir',data:planIncTRY,borderColor:'#34d39960',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:2,pointBackgroundColor:'#34d39960',borderWidth:1.5},
       {label:'Gerçekleşen Gelir',data:actIncTRY,borderColor:'#34d399',backgroundColor:'rgba(52,211,153,.06)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#34d399',borderWidth:2.5,spanGaps:false},
