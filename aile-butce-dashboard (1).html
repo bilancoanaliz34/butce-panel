@@ -1,0 +1,2342 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aile Bütçe Paneli</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--bg2:#12151c;--bg3:#181c26;--bg4:#1e2330;
+  --border:#ffffff0f;--border2:#ffffff18;
+  --text:#e8eaf0;--text2:#8b909e;--text3:#555a6a;
+  --accent:#4f8ef7;--accent2:#7c5af5;--green:#34d399;--red:#f87171;--amber:#fbbf24;--teal:#22d3ee;
+  --card-r:14px;
+  --font:'Sora',sans-serif;--mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.5;min-height:100vh;overflow-x:hidden}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.logo{padding:22px 20px 16px;border-bottom:1px solid var(--border)}
+.logo-mark{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.logo-mark span{color:var(--accent)}
+.logo-sub{font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+.nav{padding:12px 0;flex:1;overflow-y:auto}
+.nav-section{font-size:9px;font-weight:600;letter-spacing:.1em;color:var(--text3);padding:12px 20px 6px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;transition:all .15s;border-left:2px solid transparent;color:var(--text2);font-size:12px}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:var(--bg3);color:var(--accent);border-left-color:var(--accent)}
+.nav-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}
+.nav-item.active .nav-icon{opacity:1}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
+.month-sel{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 10px}
+.month-sel select{background:none;border:none;color:var(--text);font-size:12px;font-family:var(--font);outline:none;cursor:pointer;width:100%}
+.month-sel select option{background:#1e2330}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.topbar-title{font-size:16px;font-weight:600;letter-spacing:-.02em}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.fx-pill{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:12px}
+.fx-val{font-family:var(--mono);color:var(--amber);font-weight:500}
+.btn{padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;border:none;font-family:var(--font);transition:all .15s;display:flex;align-items:center;gap:5px}
+.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover{color:var(--text)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-refresh{background:var(--bg4);border:1px solid var(--amber)33;color:var(--amber);font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;font-family:var(--font);transition:all .2s}
+.btn-refresh:hover{background:var(--amber)18}
+.btn-refresh.loading{opacity:.6;pointer-events:none}
+.content{flex:1;padding:20px 28px;overflow-y:auto}
+
+/* PASTEL METRIC CARDS */
+.metrics{display:grid;gap:12px;margin-bottom:20px}
+.metric{border-radius:var(--card-r);padding:16px;position:relative;overflow:hidden;border:1px solid transparent}
+.metric.c-blue{background:linear-gradient(135deg,rgba(79,142,247,.13),rgba(79,142,247,.06));border-color:rgba(79,142,247,.2)}
+.metric.c-green{background:linear-gradient(135deg,rgba(52,211,153,.13),rgba(52,211,153,.06));border-color:rgba(52,211,153,.2)}
+.metric.c-red{background:linear-gradient(135deg,rgba(248,113,113,.13),rgba(248,113,113,.06));border-color:rgba(248,113,113,.2)}
+.metric.c-amber{background:linear-gradient(135deg,rgba(251,191,36,.13),rgba(251,191,36,.06));border-color:rgba(251,191,36,.2)}
+.metric.c-teal{background:linear-gradient(135deg,rgba(34,211,238,.13),rgba(34,211,238,.06));border-color:rgba(34,211,238,.2)}
+.metric.c-purple{background:linear-gradient(135deg,rgba(124,90,245,.13),rgba(124,90,245,.06));border-color:rgba(124,90,245,.2)}
+.metric.c-pink{background:linear-gradient(135deg,rgba(244,114,182,.13),rgba(244,114,182,.06));border-color:rgba(244,114,182,.2)}
+.m-label{font-size:10px;color:var(--text3);font-weight:500;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.m-value{font-size:19px;font-weight:600;letter-spacing:-.03em;font-family:var(--mono);margin-bottom:3px}
+.m-sub{font-size:10px;color:var(--text3)}
+.m-change{font-size:10px;margin-top:4px}
+.up{color:var(--green)}.down{color:var(--red)}.neutral{color:var(--text3)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.grid-full{display:grid;grid-template-columns:1fr;margin-bottom:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--card-r);padding:20px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:500;color:var(--text)}
+.card-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.chart-wrap{position:relative;width:100%}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{font-size:10px;color:var(--text3);font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:0 10px 9px;text-align:left;border-bottom:1px solid var(--border)}
+.data-table td{padding:9px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:#ffffff03}
+.avatar{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0}
+.cc-card{border-radius:14px;padding:18px;position:relative;overflow:hidden;cursor:pointer;transition:transform .2s;color:#fff}
+.cc-card:hover{transform:translateY(-2px)}
+.cc-card::after{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.06)}
+.cc-card::before{content:'';position:absolute;bottom:-40px;left:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.04)}
+.cc-number{font-family:var(--mono);font-size:12px;letter-spacing:.15em;opacity:.65;margin:10px 0 14px}
+.cc-limit-bar{height:3px;background:rgba(255,255,255,.15);border-radius:2px;margin-top:12px}
+.cc-limit-fill{height:100%;border-radius:2px;background:rgba(255,255,255,.6)}
+.cc-cut-badge{position:absolute;top:12px;right:12px;font-size:9px;background:rgba(255,255,255,.15);padding:3px 7px;border-radius:4px;font-family:var(--mono)}
+.bank-item{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)}
+.bank-item:last-child{border-bottom:none}
+.bank-logo{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.bank-info{flex:1;padding:0 10px}
+.bank-name{font-size:12px;font-weight:500}
+.bank-type{font-size:10px;color:var(--text3)}
+.badge{font-size:10px;padding:3px 8px;border-radius:5px;font-weight:500;font-family:var(--mono)}
+.badge-green{background:#34d39918;color:var(--green)}
+.badge-red{background:#f8717118;color:var(--red)}
+.badge-amber{background:#fbbf2418;color:var(--amber)}
+.badge-blue{background:#4f8ef718;color:var(--accent)}
+.tag{display:inline-flex;align-items:center;font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg4);color:var(--text2)}
+.fx-badge{font-size:9px;font-family:var(--mono);background:var(--bg4);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--amber);display:inline-block}
+.budget-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.budget-row:last-child{border-bottom:none}
+.br-name{font-size:12px;width:90px;flex-shrink:0}
+.br-bar-wrap{flex:1;height:10px;background:var(--bg3);border-radius:5px;overflow:hidden;position:relative}
+.br-bar-planned{position:absolute;top:0;left:0;height:100%;border-radius:5px;background:var(--border2)}
+.br-bar-actual{position:absolute;top:0;left:0;height:100%;border-radius:5px}
+.br-amounts{font-size:11px;font-family:var(--mono);text-align:right;width:150px;flex-shrink:0}
+.member-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.member-row:last-child{border-bottom:none}
+.member-bar{height:4px;background:var(--bg3);border-radius:2px;margin-top:3px;overflow:hidden}
+.member-fill{height:100%;border-radius:2px}
+
+/* ALACAK/VERECEK */
+.av-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.av-item:last-child{border-bottom:none}
+.av-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* YATIRIM */
+.inv-type-header{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:14px 0 8px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.inv-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.inv-row:last-child{border-bottom:none}
+
+/* SPIN */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .8s linear infinite;display:inline-block}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg3);border:1px solid var(--border2);border-radius:16px;padding:28px;width:480px;max-height:80vh;overflow-y:auto}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:18px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:11px;color:var(--text3);margin-bottom:5px;display:block;text-transform:uppercase;letter-spacing:.04em}
+.form-input{width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--accent)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">Bütçe<span>.</span></div>
+    <div class="logo-sub">Aile Finans Paneli</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Ana Görünüm</div>
+    <div class="nav-item active" onclick="switchPage('ozet',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".8"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".4"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".6"/></svg>
+      Özet
+    </div>
+    <div class="nav-item" onclick="switchPage('butce',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 12L6 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Bütçe & Gerçekleşen
+    </div>
+    <div class="nav-item" onclick="switchPage('tahmin',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Tahmin & Trend
+    </div>
+    <div class="nav-section">Hesaplar</div>
+    <div class="nav-item" onclick="switchPage('kartlar',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M1 7h14" stroke="currentColor" stroke-width="1.5"/></svg>
+      Kredi Kartları
+    </div>
+    <div class="nav-item" onclick="switchPage('bankalar',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 1l7 4H1l7-4z" fill="currentColor" opacity=".6"/><rect x="2" y="6" width="2" height="6" fill="currentColor" opacity=".5"/><rect x="7" y="6" width="2" height="6" fill="currentColor" opacity=".5"/><rect x="12" y="6" width="2" height="6" fill="currentColor" opacity=".5"/><rect x="1" y="12" width="14" height="2" rx="1" fill="currentColor" opacity=".4"/></svg>
+      Banka Hesapları
+    </div>
+    <div class="nav-item" onclick="switchPage('yatirimlar',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 14l3-5 3 2 3-4 3-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Yatırımlar
+    </div>
+    <div class="nav-section">Harcamalar</div>
+    <div class="nav-item" onclick="switchPage('harcamalar',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M13 4H3a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2z" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8.5" r="1.5" fill="currentColor"/></svg>
+      Harcamalar
+    </div>
+    <div class="nav-item" onclick="switchPage('gelirler',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M4 6l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Gelirler
+    </div>
+    <div class="nav-item" onclick="switchPage('borclar',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Borç / Alacak
+    </div>
+    <div class="nav-item" onclick="switchPage('kisiler',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M1 14c0-3 2-5 5-5s5 2 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="5" r="2" stroke="currentColor" stroke-width="1.2" opacity=".5"/></svg>
+      Aile Üyeleri
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="month-sel">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="9" rx="1.5" stroke="#8b909e" stroke-width="1.2"/><path d="M4 1v2M8 1v2M1 5h10" stroke="#8b909e" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <select id="monthSel">
+        <option value="10">Ekim 2025</option><option value="11">Kasım 2025</option>
+        <option value="12">Aralık 2025</option><option value="1">Ocak 2026</option>
+        <option value="2">Şubat 2026</option><option value="3" selected>Mart 2026</option>
+      </select>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="pageTitle">Genel Özet</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:1px" id="pageDesc">Mart 2026</div>
+    </div>
+    <div class="topbar-right">
+      <div class="fx-pill">
+        <span style="color:var(--text3);font-size:11px">$1 =</span>
+        <span class="fx-val" id="fxDisplay">₺38.42</span>
+        <button class="btn-refresh" id="fxRefreshBtn" onclick="refreshFX()">
+          <span id="fxIcon">↻</span> Kur Güncelle
+        </button>
+      </div>
+      <button class="btn btn-ghost" onclick="openModal()">+ Harcama Ekle</button>
+      <button class="btn btn-ghost" onclick="openCloudSettings()" style="gap:4px;border-color:var(--teal)33;color:var(--teal)" title="Jsonbin.io bulut senkronizasyon ayarları">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M4 11a3 3 0 01-.5-5.95A4.5 4.5 0 0112.5 7H13a2 2 0 010 4H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        <span id="cloudBtnLabel">Bulut</span>
+      </button>
+      <button class="btn btn-ghost" onclick="importData()" style="gap:4px" title="JSON dosyası yükle">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 7l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Yükle
+      </button>
+      <button class="btn btn-primary" onclick="exportData()" style="gap:4px">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 11V2M4 5l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        İndir
+      </button>
+      <div id="saveIndicator" style="font-size:10px;color:var(--text3);font-family:var(--mono);min-width:90px;text-align:right;white-space:nowrap"></div>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(this)">
+    </div>
+  </div>
+  <div class="content" id="mainContent"></div>
+</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal" style="width:500px">
+    <div class="modal-title">Yeni Harcama Ekle</div>
+    <div class="form-group"><label class="form-label">Tarih</label><input class="form-input" type="date" id="f-date" value="2026-03-28"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Tutar (₺)</label>
+        <input class="form-input" type="number" id="f-try-in" placeholder="0,00" oninput="calcUSD()">
+      </div>
+      <div class="form-group"><label class="form-label">Kur (₺/$)</label>
+        <input class="form-input" type="number" id="f-rate" placeholder="38.42" oninput="calcUSD()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">USD Karşılığı (otomatik)</label>
+      <input class="form-input" type="text" id="f-usd-disp" readonly style="color:var(--teal)">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Taksit Sayısı</label>
+        <select class="form-input" id="f-inst" onchange="calcUSD();updatePeriodSelector()">
+          <option value="1">Tek çekim</option>
+          <option value="2">2 taksit</option>
+          <option value="3">3 taksit</option>
+          <option value="6">6 taksit</option>
+          <option value="9">9 taksit</option>
+          <option value="12">12 taksit</option>
+          <option value="18">18 taksit</option>
+          <option value="24">24 taksit</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Taksit Tutarı</label>
+        <input class="form-input" type="text" id="f-inst-amt" readonly style="color:var(--amber)">
+      </div>
+    </div>
+    <div id="f-inst-info" style="display:none;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--teal)"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Kategori</label>
+        <select class="form-input" id="f-cat">
+          <option>Kira</option><option>Market</option><option>Ulaşım</option>
+          <option>Eğlence</option><option>Faturalar</option><option>Sağlık</option>
+          <option>Eğitim</option><option>Giyim</option><option>Diğer</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Aile Üyesi</label>
+        <select class="form-input" id="f-member">
+          <!-- JS tarafından dinamik doldurulur -->
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Kart / Hesap</label>
+        <select class="form-input" id="f-method" onchange="updateCardInfo();updatePeriodSelector()">
+          <!-- JS tarafından dinamik doldurulur -->
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Açıklama</label>
+        <input class="form-input" type="text" id="f-desc" placeholder="İşlem notu...">
+      </div>
+    </div>
+    <div id="f-period-wrap" style="display:none;background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.2);border-radius:8px;padding:10px 14px;margin-bottom:10px">
+      <label class="form-label" style="margin-bottom:6px">İlk Ekstre Dönemi</label>
+      <select class="form-input" id="f-period" onchange="updateInstallmentPreview()"></select>
+      <div id="f-period-preview" style="margin-top:8px;font-size:11px;color:var(--teal);line-height:1.7"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Ürün / Marka</label>
+        <input class="form-input" type="text" id="f-brand" placeholder="Marka veya ürün adı...">
+      </div>
+      <div class="form-group"><label class="form-label">Miktar</label>
+        <div style="display:flex;gap:6px">
+          <input class="form-input" type="number" id="f-qty" placeholder="0" style="flex:1;min-width:0">
+          <select class="form-input" id="f-unit" style="width:90px;flex-shrink:0">
+            <option value="">adet</option><option value="kg">kg</option><option value="g">g</option>
+            <option value="lt">lt</option><option value="ml">ml</option><option value="m">m</option>
+            <option value="paket">paket</option><option value="kutu">kutu</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="f-card-info" style="display:none;background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.2);border-radius:8px;padding:10px 12px;margin-bottom:4px;font-size:11px;color:var(--accent)"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">İptal</button>
+      <button class="btn btn-primary" onclick="addTransaction()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let FX = 38.42;
+let fxUpdated = 'Mart 28, 14:32';
+
+let MEMBERS = [
+  {id:'ahmet',  name:'Ahmet',  initials:'AK', color:'#4f8ef7'},
+  {id:'zeynep', name:'Zeynep', initials:'ZK', color:'#7c5af5'},
+  {id:'emre',   name:'Emre',   initials:'EK', color:'#34d399'},
+  {id:'elif',   name:'Elif',   initials:'EL', color:'#fbbf24'},
+];
+
+const BANKS = [
+  {name:'Garanti BBVA', type:'Vadesiz Hesap', balanceTRY:479000, color:'#16a34a', logo:'G'},
+  {name:'Yapı Kredi',   type:'Vadeli Mevduat', balanceTRY:1729000, color:'#1d4ed8', logo:'YK'},
+  {name:'Akbank',       type:'Vadesiz Hesap', balanceTRY:342000, color:'#dc2626', logo:'AK'},
+  {name:'Ziraat',       type:'Altın Hesabı',  balanceTRY:864000, color:'#d97706', logo:'ZB'},
+];
+
+const CREDIT_CARDS = [
+  {bank:'Garanti BBVA', label:'Bonus', owner:'Ahmet',
+   number:'•••• •••• •••• 4521', limitTRY:576000, spentTRY:355000, cutDay:15,
+   color:'linear-gradient(135deg,#1a4a2e,#0d6b3a)',
+   txns:[
+     {date:'28 Mar',desc:'Migros',cat:'Market',member:'Zeynep',usd:38.5,rate:38.40,try:1478},
+     {date:'26 Mar',desc:'Benzin Shell',cat:'Ulaşım',member:'Ahmet',usd:25,rate:38.35,try:959},
+     {date:'24 Mar',desc:'Netflix',cat:'Eğlence',member:'Ahmet',usd:7.99,rate:38.42,try:307},
+     {date:'22 Mar',desc:'Diş Hekimi',cat:'Sağlık',member:'Elif',usd:156,rate:38.50,try:5993},
+   ]},
+  {bank:'Yapı Kredi', label:'Miles', owner:'Zeynep',
+   number:'•••• •••• •••• 7803', limitTRY:768000, spentTRY:438000, cutDay:22,
+   color:'linear-gradient(135deg,#1e3a5f,#1a56a0)',
+   txns:[
+     {date:'27 Mar',desc:'CarrefourSA',cat:'Market',member:'Zeynep',usd:65,rate:38.42,try:2497},
+     {date:'25 Mar',desc:'Zara',cat:'Giyim',member:'Zeynep',usd:89,rate:38.38,try:3416},
+     {date:'20 Mar',desc:'Okul taksit',cat:'Eğitim',member:'Emre',usd:220,rate:38.45,try:8459},
+     {date:'18 Mar',desc:'Havalimanı taksi',cat:'Ulaşım',member:'Ahmet',usd:18,rate:38.40,try:691},
+   ]},
+  {bank:'Akbank', label:'Axess', owner:'Ahmet',
+   number:'•••• •••• •••• 1192', limitTRY:384000, spentTRY:148000, cutDay:8,
+   color:'linear-gradient(135deg,#4a1010,#991919)',
+   txns:[
+     {date:'28 Mar',desc:'Spotify Aile',cat:'Eğlence',member:'Ahmet',usd:16.99,rate:38.42,try:653},
+     {date:'23 Mar',desc:'Amazon',cat:'Diğer',member:'Elif',usd:42,rate:38.30,try:1609},
+     {date:'15 Mar',desc:'Eczane',cat:'Sağlık',member:'Zeynep',usd:28,rate:38.55,try:1079},
+   ]},
+];
+
+// Investments — weekly updated
+let INVESTMENTS = {
+  lastUpdated: '28 Mar 2026, 09:15',
+  items: [
+    {type:'kripto', name:'Bitcoin (BTC)',    invested:45000, current:52400, monthly:[3.1,8.2,-4.5,12.1,6.8,15.3]},
+    {type:'kripto', name:'Ethereum (ETH)',   invested:20000, current:18600, monthly:[5.2,-3.1,7.8,-8.4,4.2,-7.0]},
+    {type:'hisse',  name:'BIST 100 ETF',    invested:80000, current:91200, monthly:[2.1,3.4,1.8,4.2,2.9,3.8]},
+    {type:'hisse',  name:'Teknoloji Fonu',  invested:25000, current:29800, monthly:[4.5,6.1,-2.3,8.4,3.1,5.7]},
+    {type:'altin',  name:'Gram Altın',       invested:60000, current:71500, monthly:[1.2,2.1,3.4,2.8,1.9,2.8]},
+    {type:'altin',  name:'Ata Altın',        invested:15000, current:17200, monthly:[1.0,1.8,3.1,2.5,1.7,2.6]},
+    {type:'fon',    name:'Para Piyasası F.', invested:30000, current:32100, monthly:[0.6,0.6,0.7,0.6,0.7,0.6]},
+    {type:'fon',    name:'Karma Fon A',      invested:20000, current:23400, monthly:[1.4,2.1,1.8,2.8,1.5,2.3]},
+    {type:'bes',    name:'BES Emeklilik',    invested:50000, current:61800, monthly:[1.1,1.3,1.2,1.4,1.1,1.3]},
+    {type:'bes',    name:'BES Büyüme F.',   invested:18000, current:22500, monthly:[1.8,2.2,1.9,2.4,1.7,2.0]},
+  ]
+};
+
+let ALACAK_VERECEK = [
+  {id:1, type:'alacak', person:'Mehmet Bey', desc:'Kira borcu', usd:500, rate:38.10, date:'15 Nis', status:'bekliyor'},
+  {id:2, type:'alacak', person:'Selin H.',   desc:'Tatil payı', usd:200, rate:38.00, date:'30 Mar', status:'bekliyor'},
+  {id:3, type:'verecek',person:'Market',     desc:'Fatura borcu',usd:85, rate:38.42, date:'5 Nis',  status:'bekliyor'},
+  {id:4, type:'verecek',person:'Ortak Gider',desc:'Düğün masrafı',usd:350,rate:38.30,date:'20 Nis', status:'bekliyor'},
+];
+let avNextId=5;
+// Ödendi işaretlenen kart ekstrelerinin ID'leri (cc_Label_Period formatı)
+let PAID_EKSTRES=new Set();
+
+// Income records
+let INCOME_RECORDS = [
+  {id:1, date:'27 Mar', desc:'Maaş — Ahmet', member:'Ahmet', cat:'Maaş', usd:2200, rate:38.30},
+  {id:2, date:'27 Mar', desc:'Maaş — Zeynep', member:'Zeynep', cat:'Maaş', usd:900, rate:38.30},
+  {id:3, date:'15 Mar', desc:'Kira Geliri', member:'Ahmet', cat:'Kira Geliri', usd:85, rate:38.42},
+  {id:4, date:'10 Mar', desc:'Freelance iş', member:'Zeynep', cat:'Ek Gelir', usd:215, rate:38.10},
+];
+let incNextId=5;
+
+const CATEGORIES = ['Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'];
+const CAT_COLORS  = {Kira:'#4f8ef7',Market:'#34d399',Ulaşım:'#22d3ee',Eğlence:'#a78bfa',Faturalar:'#fbbf24',Sağlık:'#f87171',Eğitim:'#fb923c',Giyim:'#f472b6',Diğer:'#8b909e'};
+
+const MONTHS_LABELS = ['Eki','Kas','Ara','Oca','Şub','Mar'];
+const INCOME_USD    = [2800,2900,3100,3000,3100,3200];
+const PLAN_EXP_USD  = [1300,1310,1350,1310,1330,1344];
+const ACTUAL_EXP_USD= [1980,2100,2350,2050,1980,2138];
+
+const BUDGET_DATA = [
+  {cat:'Kira',planned:234,actual:234},{cat:'Market',planned:260,actual:298},
+  {cat:'Ulaşım',planned:130,actual:109},{cat:'Eğlence',planned:100,actual:136},
+  {cat:'Faturalar',planned:180,actual:167},{cat:'Sağlık',planned:80,actual:203},
+  {cat:'Eğitim',planned:220,actual:220},{cat:'Giyim',planned:60,actual:89},
+  {cat:'Diğer',planned:80,actual:82},
+];
+
+let allTransactions = [];
+CREDIT_CARDS.forEach(cc=>cc.txns.forEach(t=>allTransactions.push({...t,card:cc.label,bank:cc.bank})));
+allTransactions.sort((a,b)=>new Date('2026 '+b.date)-new Date('2026 '+a.date));
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const $ = id=>document.getElementById(id);
+const fmtUSD=(v,d=0)=>'$'+(+v).toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtTRY=v=>'₺'+Math.round(+v).toLocaleString('tr-TR');
+const toUSD=try_=>try_/FX;
+const mColor=name=>MEMBERS.find(m=>m.name===name)?.color||'#888';
+const mInit =name=>MEMBERS.find(m=>m.name===name)?.initials||name.slice(0,2).toUpperCase();
+const INV_COLORS={kripto:'#fbbf24',hisse:'#4f8ef7',altin:'#f59e0b',fon:'#34d399',bes:'#a78bfa'};
+const INV_LABELS={kripto:'Kripto',hisse:'Hisse',altin:'Altın',fon:'Fon',bes:'BES'};
+
+function destroyChart(id){const el=$(id);if(!el)return;const c=Chart.getChart(el);if(c)c.destroy();}
+Chart.defaults.color='#8b909e';Chart.defaults.font.size=11;Chart.defaults.font.family="'Sora',sans-serif";
+const G='rgba(255,255,255,0.05)';
+
+// ─── FX REFRESH ──────────────────────────────────────────────────────────────
+async function refreshFX(){
+  const btn=$('fxRefreshBtn');const icon=$('fxIcon');
+  btn.classList.add('loading');icon.classList.add('spin');icon.textContent='↻';
+  try{
+    // Try to fetch from public FX API
+    const r=await fetch('https://open.er-api.com/v6/latest/USD');
+    if(r.ok){
+      const d=await r.json();
+      if(d.rates&&d.rates.TRY){
+        FX=+d.rates.TRY.toFixed(2);
+        $('fxDisplay').textContent='₺'+FX;
+        $('f-rate').value=FX;
+        fxUpdated='Canlı — '+(new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}));
+        switchPage(currentPage,null);
+        return;
+      }
+    }
+  }catch(e){}
+  // Fallback: simulate small change
+  FX=+(FX+(Math.random()-.4)*.3).toFixed(2);
+  $('fxDisplay').textContent='₺'+FX;
+  $('f-rate').value=FX;
+  fxUpdated='Tahmini — '+(new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}));
+  switchPage(currentPage,null);
+  btn.classList.remove('loading');icon.classList.remove('spin');icon.textContent='↻';
+}
+window.refreshFX=refreshFX;
+
+// ─── PAGE BUILDERS ───────────────────────────────────────────────────────────
+const totalBankTRY = ()=>BANKS.reduce((s,b)=>s+b.balanceTRY,0);
+const totalInvTRY  = ()=>INVESTMENTS.items.reduce((s,i)=>s+i.current,0);
+const totalCCTRY   = ()=>CREDIT_CARDS.reduce((s,c)=>s+c.spentTRY,0);
+
+function pageOzet(){
+  const bankUSD=totalBankTRY()/FX, invUSD=totalInvTRY()/FX, ccUSD=totalCCTRY()/FX;
+  const totalVarlikUSD=bankUSD+invUSD;
+  const netVarlikUSD=totalVarlikUSD-ccUSD;
+  const gelir=INCOME_USD[5], gider=ACTUAL_EXP_USD[5], tasarruf=gelir-gider;
+  const savRate=Math.round(tasarruf/gelir*100);
+  const alacakUSD=ALACAK_VERECEK.filter(a=>a.type==='alacak').reduce((s,a)=>s+a.usd,0);
+  const verecekUSD=ALACAK_VERECEK.filter(a=>a.type==='verecek').reduce((s,a)=>s+a.usd,0);
+
+  return`
+  <!-- VARLIK BANNER -->
+  <div style="background:linear-gradient(135deg,rgba(34,211,238,.08),rgba(124,90,245,.06));border:1px solid rgba(34,211,238,.18);border-radius:16px;padding:18px 24px;margin-bottom:14px;display:flex;align-items:center;gap:0">
+    <div style="flex:1;border-right:1px solid var(--border2);padding-right:24px">
+      <div style="font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Toplam Varlıklar (USD)</div>
+      <div style="font-size:30px;font-weight:600;font-family:var(--mono);color:var(--teal);letter-spacing:-.04em">${fmtUSD(totalVarlikUSD,0)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">Banka + Yatırım portföyü</div>
+    </div>
+    <div style="display:flex;gap:0;flex:2">
+      <div style="flex:1;padding:0 24px;border-right:1px solid var(--border2)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Banka Hesapları</div>
+        <div style="font-size:20px;font-weight:600;font-family:var(--mono)">${fmtUSD(bankUSD,0)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">4 hesap</div>
+      </div>
+      <div style="flex:1;padding:0 24px;border-right:1px solid var(--border2)">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Yatırım Portföyü</div>
+        <div style="font-size:20px;font-weight:600;font-family:var(--mono)">${fmtUSD(invUSD,0)}</div>
+        <div style="font-size:10px;color:var(--green);margin-top:2px">↑ %6.4 bu ay</div>
+      </div>
+      <div style="flex:1;padding:0 24px;border-right:1px solid var(--border2)">
+        <div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Kredi Kartı Borcu</div>
+        <div style="font-size:20px;font-weight:600;font-family:var(--mono);color:var(--red)">-${fmtUSD(ccUSD,0)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">3 kart</div>
+      </div>
+      <div style="flex:1;padding:0 0 0 24px">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Net Varlık</div>
+        <div style="font-size:20px;font-weight:600;font-family:var(--mono);color:var(--green)">${fmtUSD(netVarlikUSD,0)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Borç düşülmüş</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+    <div class="metric c-blue">
+      <div class="m-label">Aylık Gelir</div>
+      <div class="m-value">${fmtUSD(gelir)}</div>
+      <div class="m-change up">↑ %3.2 geçen ay</div>
+    </div>
+    <div class="metric c-red">
+      <div class="m-label">Aylık Gider</div>
+      <div class="m-value">${fmtUSD(gider)}</div>
+      <div class="m-change down">↑ %7.9 geçen ay</div>
+    </div>
+    <div class="metric c-green">
+      <div class="m-label">Net Tasarruf</div>
+      <div class="m-value">${fmtUSD(tasarruf)}</div>
+      <div class="m-sub">Oran: %${savRate}</div>
+    </div>
+    <div class="metric c-green" style="background:linear-gradient(135deg,rgba(52,211,153,.1),rgba(52,211,153,.04));border-color:rgba(52,211,153,.2)">
+      <div class="m-label">Alacak</div>
+      <div class="m-value" style="color:var(--green)">${fmtUSD(alacakUSD,0)}</div>
+      <div class="m-sub">${ALACAK_VERECEK.filter(a=>a.type==='alacak').length} kayıt</div>
+    </div>
+    <div class="metric c-red" style="background:linear-gradient(135deg,rgba(248,113,113,.1),rgba(248,113,113,.04));border-color:rgba(248,113,113,.2)">
+      <div class="m-label">Verecek</div>
+      <div class="m-value" style="color:var(--red)">${fmtUSD(verecekUSD,0)}</div>
+      <div class="m-sub">${ALACAK_VERECEK.filter(a=>a.type==='verecek').length} kayıt</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Planlanan vs Gerçekleşen Gider</div><div class="card-sub">Son 6 ay — USD</div></div>
+      <div style="display:flex;gap:14px;font-size:10px;color:var(--text3)">
+        <span><span style="display:inline-block;width:16px;height:2px;background:#4f8ef750;border-top:2px dashed #4f8ef7;margin-right:5px;vertical-align:middle"></span>Planlanan</span>
+        <span><span style="display:inline-block;width:16px;height:3px;background:#f87171;margin-right:5px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:200px"><canvas id="ozBudgetLine"></canvas></div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Aile Harcamaları</div></div>
+      ${MEMBERS.map(m=>{
+        const tot=allTransactions.filter(t=>t.member===m.name).reduce((s,t)=>s+t.usd,0);
+        const all=allTransactions.reduce((s,t)=>s+t.usd,0);
+        const pct=Math.round(tot/all*100)||0;
+        return`<div class="member-row">
+          <div class="avatar" style="background:${m.color}22;color:${m.color}">${m.initials}</div>
+          <div style="flex:1;padding:0 10px"><div style="font-size:12px;font-weight:500">${m.name}</div>
+            <div class="member-bar"><div class="member-fill" style="width:${pct}%;background:${m.color}"></div></div>
+          </div>
+          <div style="text-align:right"><div style="font-family:var(--mono);font-size:12px;color:${m.color}">${fmtUSD(tot)}</div>
+            <div style="font-size:9px;color:var(--text3)">%${pct}</div></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Gider Dağılımı</div></div>
+      <div class="chart-wrap" style="height:140px"><canvas id="ozDonut"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;margin-top:10px">
+        ${CATEGORIES.map(c=>`<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)"><span style="width:7px;height:7px;border-radius:1px;background:${CAT_COLORS[c]};flex-shrink:0"></span>${c}</div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Varlık Dağılımı</div></div>
+      <div class="chart-wrap" style="height:140px"><canvas id="ozVarlik"></canvas></div>
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:1px;background:#22d3ee;display:inline-block"></span><span style="color:var(--text3)">Banka</span></span>
+          <span style="font-family:var(--mono)">${fmtUSD(bankUSD,0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:1px;background:#7c5af5;display:inline-block"></span><span style="color:var(--text3)">Yatırım</span></span>
+          <span style="font-family:var(--mono)">${fmtUSD(invUSD,0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0">
+          <span style="color:var(--text3)">Toplam</span>
+          <span style="font-family:var(--mono);font-weight:600;color:var(--teal)">${fmtUSD(totalVarlikUSD,0)}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function pageButce(){
+  const totalP=BUDGET_DATA.reduce((s,b)=>s+b.planned,0);
+  const totalA=BUDGET_DATA.reduce((s,b)=>s+b.actual,0);
+  const diff=totalA-totalP;
+  return`
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric c-blue"><div class="m-label">Planlanan</div><div class="m-value">${fmtUSD(totalP)}</div><div class="m-sub">${fmtTRY(totalP*FX)}</div></div>
+    <div class="metric c-${diff>0?'red':'green'}"><div class="m-label">Gerçekleşen</div><div class="m-value">${fmtUSD(totalA)}</div><div class="m-sub">${fmtTRY(totalA*FX)}</div></div>
+    <div class="metric c-${diff>0?'red':'green'}"><div class="m-label">Sapma</div><div class="m-value" style="color:${diff>0?'var(--red)':'var(--green)'}">${diff>0?'+':''}${fmtUSD(diff)}</div><div class="m-sub">${diff>0?'Bütçe aşıldı':'Dahilinde'}</div></div>
+    <div class="metric c-teal"><div class="m-label">Gerçekleşme</div><div class="m-value">%${Math.round(totalA/totalP*100)}</div><div class="m-sub">Bütçe kullanımı</div></div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Aylık Planlanan vs Gerçekleşen Gider</div><div class="card-sub">6 ay — USD bazlı, tam genişlik</div></div>
+      <div style="display:flex;gap:14px;font-size:10px;color:var(--text3)">
+        <span><span style="display:inline-block;width:16px;height:2px;background:rgba(79,142,247,.5);margin-right:5px;vertical-align:middle;border-top:2px dashed #4f8ef7"></span>Planlanan</span>
+        <span><span style="display:inline-block;width:16px;height:3px;background:#f87171;margin-right:5px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:240px"><canvas id="butceLine"></canvas></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Kategori Detayı</div></div>
+      <div>
+      ${BUDGET_DATA.map(b=>{
+        const pct=Math.min(100,Math.round(b.actual/b.planned*100));
+        const over=b.actual>b.planned;
+        const c=over?'var(--red)':b.actual/b.planned>.85?'var(--amber)':'var(--green)';
+        return`<div class="budget-row">
+          <div class="br-name">${b.cat}</div>
+          <div class="br-bar-wrap"><div class="br-bar-planned" style="width:100%"></div><div class="br-bar-actual" style="width:${pct}%;background:${c}"></div></div>
+          <div class="br-amounts">
+            <span style="color:${c};font-weight:500">${fmtUSD(b.actual)}</span> <span style="color:var(--text3)">/ ${fmtUSD(b.planned)}</span>
+            <div style="font-size:10px;color:${c}">${over?'▲':'▼'} ${fmtUSD(Math.abs(b.actual-b.planned))}</div>
+          </div>
+        </div>`;
+      }).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Kategori Karşılaştırma</div></div>
+      <div class="chart-wrap" style="height:280px"><canvas id="butceBar"></canvas></div>
+    </div>
+  </div>`;
+}
+
+function pageTahmin(){
+  const ALL_M=['Eki','Kas','Ara','Oca','Şub','Mar','Nis','May','Haz'];
+  const ALL_INC=[2800,2900,3100,3000,3100,3200,3250,3300,3350];
+  const ALL_PL=[1300,1310,1350,1310,1330,1344,1360,1370,1380];
+  const ALL_AC=[1980,2100,2350,2050,1980,2138,null,null,null];
+  const SAV=ALL_INC.map((v,i)=>v-(ALL_AC[i]||ALL_PL[i]));
+  const rates=INCOME_USD.map((v,i)=>Math.round((INCOME_USD[i]-ACTUAL_EXP_USD[i])/v*100));
+  return`
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Gelir / Gider / Tasarruf Tahmini</div><div class="card-sub">Geçmiş + 3 aylık projeksiyon (kesik çizgi)</div></div>
+      <div style="display:flex;gap:14px;font-size:10px;color:var(--text3)">
+        <span><span style="background:#4f8ef7;width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px"></span>Gelir</span>
+        <span><span style="background:#f87171;width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px"></span>Gider</span>
+        <span><span style="background:#34d399;width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px"></span>Tasarruf</span>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:260px"><canvas id="tahminLine"></canvas></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Tasarruf Oranı — Aylık</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="savRate"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;text-align:center">
+        ${[['Ort.',`%${Math.round(rates.reduce((a,b)=>a+b)/rates.length)}`],['En Yüksek',`%${Math.max(...rates)}`],['Hedef','%30']].map(([l,v])=>`
+        <div style="background:var(--bg3);border-radius:8px;padding:8px"><div style="font-size:9px;color:var(--text3)">${l}</div><div style="font-size:15px;font-weight:600;font-family:var(--mono);color:var(--green)">${v}</div></div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Kümülatif Birikim</div><div class="card-sub">USD</div></div>
+      <div class="chart-wrap" style="height:200px"><canvas id="cumChart"></canvas></div>
+    </div>
+  </div>`;
+}
+
+function pageKartlar(){
+  return`
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+    ${CREDIT_CARDS.map((cc,i)=>{
+      const pct=Math.round(cc.spentTRY/cc.limitTRY*100);
+      const today=new Date();
+      const cut=new Date(today.getFullYear(),today.getMonth(),cc.cutDay);
+      if(cut<today)cut.setMonth(cut.getMonth()+1);
+      const days=Math.ceil((cut-today)/864e5);
+      return`<div class="cc-card" style="background:${cc.color}" onclick="selectCard(${i})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="font-size:9px;background:rgba(255,255,255,.15);padding:3px 7px;border-radius:4px;font-family:var(--mono)">${cc.cutDay}. kesim · ${days} gün</div>
+          <button onclick="event.stopPropagation();openCardSettingsModal(${i})" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;font-family:var(--font)">⚙ Ayarlar</button>
+        </div>
+        <div style="font-size:12px;font-weight:600;letter-spacing:.04em;opacity:.8;margin-top:10px">${cc.bank}</div>
+        <div style="font-size:14px;font-weight:700;margin-top:2px">${cc.label}</div>
+        <div class="cc-number">${cc.number}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Harcanan</div>
+            <div style="font-size:14px;font-weight:600;font-family:var(--mono)">${fmtTRY(cc.spentTRY)}</div>
+            <div style="font-size:10px;opacity:.65;font-family:var(--mono)">${fmtUSD(cc.spentTRY/FX,0)}</div>
+          </div>
+          <div style="text-align:right"><div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Limit</div>
+            <div style="font-size:12px;font-weight:500;font-family:var(--mono)">${fmtTRY(cc.limitTRY)}</div>
+            <div style="font-size:10px;opacity:.65;font-family:var(--mono)">${fmtUSD(cc.limitTRY/FX,0)}</div>
+          </div>
+        </div>
+        <div class="cc-limit-bar"><div class="cc-limit-fill" style="width:${Math.min(pct,100)}%"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9px;opacity:.6">
+          <span>%${pct} kullanıldı · Kalan: ${fmtTRY(cc.limitTRY-cc.spentTRY)}</span><span>${cc.owner}</span>
+        </div>
+      </div>`;
+    }).join('')}
+    <div onclick="openCardSettingsModal(null)" style="border:2px dashed var(--border2);border-radius:14px;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:all .2s;min-height:180px" onmouseover="this.style.borderColor='var(--accent)';this.style.background='rgba(79,142,247,.05)'" onmouseout="this.style.borderColor='var(--border2)';this.style.background='none'">
+      <div style="font-size:28px;color:var(--text3)">+</div>
+      <div style="font-size:12px;color:var(--text3)">Yeni Kart Ekle</div>
+    </div>
+  </div>
+  <div id="ccDetail">${renderCCDetail(0)}</div>`;
+}
+
+function renderCCDetail(idx){
+  const cc=CREDIT_CARDS[idx];
+  if(!cc) return '';
+  const today=new Date();
+  const cut=new Date(today.getFullYear(),today.getMonth(),cc.cutDay);
+  if(cut<today)cut.setMonth(cut.getMonth()+1);
+  const days=Math.ceil((cut-today)/864e5);
+  const remaining=cc.limitTRY-cc.spentTRY;
+
+  // Group transactions by billingPeriod
+  const byPeriod={};
+  cc.txns.forEach(t=>{
+    const key=t.billingPeriod||'Dönem Belirtilmemiş';
+    if(!byPeriod[key]) byPeriod[key]=[];
+    byPeriod[key].push(t);
+  });
+
+  // Sort periods chronologically
+  const periodOrder=Object.keys(byPeriod).sort((a,b)=>{
+    const parseP=s=>{const p=s.split(' ');return(parseInt(p[1])||0)*12+(MN_TR.indexOf(p[0]));}; 
+    return parseP(a)-parseP(b);
+  });
+
+  const periodHTML=periodOrder.length===0
+    ? `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Bu karta ait işlem yok</td></tr>`
+    : periodOrder.map(period=>{
+        const txns=byPeriod[period];
+        const totalUSD=txns.reduce((s,t)=>s+t.usd,0);
+        const totalTRY=txns.reduce((s,t)=>s+t.try,0);
+        return`
+          <tr style="background:var(--bg3)">
+            <td colspan="5" style="font-size:11px;font-weight:600;color:var(--accent);padding:8px 12px;letter-spacing:.04em">
+              📅 ${period} Ekstresi
+            </td>
+            <td style="font-size:11px;font-family:var(--mono);color:var(--amber);padding:8px 12px;text-align:right">${fmtTRY(totalTRY)}</td>
+            <td style="padding:8px 12px;text-align:right">
+              <button onclick="editBillingPeriod(${idx},'${period}')" style="background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text3);font-size:10px;padding:2px 6px;cursor:pointer;font-family:var(--font)">✎ Düzenle</button>
+            </td>
+          </tr>
+          ${txns.map(t=>`<tr>
+            <td style="color:var(--text3);font-family:var(--mono);padding-left:20px">${t.date}</td>
+            <td style="font-weight:500">${t.desc}</td>
+            <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
+            <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
+            <td style="font-family:var(--mono)">${fmtUSD(t.usd,2)}</td>
+            <td><span class="fx-badge">₺${t.rate||FX}</span></td>
+            <td style="font-family:var(--mono);font-weight:500">${fmtTRY(t.try)}</td>
+          </tr>`).join('')}`;
+      }).join('');
+
+  return`<div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">${cc.bank} ${cc.label} — Ekstre Görünümü</div>
+        <div class="card-sub">Kesim: her ayın <strong>${cc.cutDay}.</strong> · ${days} gün kaldı · Kalan: ${fmtTRY(remaining)} (${fmtUSD(remaining/FX,0)})</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${CREDIT_CARDS.map((c,i)=>`<button class="btn btn-ghost btn-sm" onclick="selectCard(${i})" style="${i===idx?'border-color:var(--accent);color:var(--accent)':''}">${c.label}</button>`).join('')}
+        <button class="btn btn-ghost btn-sm" onclick="openCardSettingsModal(${idx})" style="color:var(--amber);border-color:var(--amber)33">⚙</button>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>USD</th><th>Kur / ₺</th><th style="width:80px"></th></tr></thead>
+      <tbody>${periodHTML}</tbody>
+    </table>
+  </div>`;
+}
+window.selectCard=function(i){const el=$('ccDetail');if(el)el.innerHTML=renderCCDetail(i);};
+
+// Bir ekstre döneminin tüm işlemlerini başka döneme taşı
+window.editBillingPeriod=function(ccIdx, oldPeriod){
+  const cc=CREDIT_CARDS[ccIdx];
+  // Build next 12 period options
+  const opts=[];
+  const now=new Date();
+  for(let i=-2;i<12;i++){
+    let mo=now.getMonth()+i, yr=now.getFullYear()+Math.floor(mo/12); mo=((mo%12)+12)%12;
+    opts.push(`${MN_TR[mo]} ${yr}`);
+  }
+  const html=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Ekstre Dönemini Değiştir</div>
+    <div style="background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text3)">
+      <strong style="color:var(--text)">${oldPeriod}</strong> dönemindeki tüm işlemler yeni döneme taşınacak.
+    </div>
+    <div class="form-group">
+      <label class="form-label">Yeni Dönem</label>
+      <select class="form-input" id="ep-new">
+        ${opts.map(o=>`<option ${o===oldPeriod?'selected':''}>${o}</option>`).join('')}
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveBillingPeriodEdit(${ccIdx},'${oldPeriod}')">Taşı</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveBillingPeriodEdit=function(ccIdx, oldPeriod){
+  const newPeriod=$('ep-new').value;
+  const cc=CREDIT_CARDS[ccIdx];
+  cc.txns.forEach(t=>{ if(t.billingPeriod===oldPeriod) t.billingPeriod=newPeriod; });
+  allTransactions.forEach(t=>{ if(t.billingPeriod===oldPeriod&&t.card===cc.label) t.billingPeriod=newPeriod; });
+  closeDynModal();
+  const el=$('ccDetail'); if(el) el.innerHTML=renderCCDetail(ccIdx);
+};
+
+// Card settings modal — new or edit
+window.openCardSettingsModal=function(idx){
+  const cc=(idx!=null&&idx!=='null')?CREDIT_CARDS[idx]:null;
+  const cidx=(idx!=null&&idx!=='null')?idx:null;
+  const CARD_COLORS=[
+    {label:'Yeşil',val:'linear-gradient(135deg,#1a4a2e,#0d6b3a)'},
+    {label:'Mavi',val:'linear-gradient(135deg,#1e3a5f,#1a56a0)'},
+    {label:'Kırmızı',val:'linear-gradient(135deg,#4a1010,#991919)'},
+    {label:'Mor',val:'linear-gradient(135deg,#2d1b69,#5b21b6)'},
+    {label:'Lacivert',val:'linear-gradient(135deg,#0f2027,#203a43)'},
+    {label:'Altın',val:'linear-gradient(135deg,#78350f,#b45309)'},
+  ];
+  const currentColorIdx=cc?Math.max(0,CARD_COLORS.findIndex(c=>c.val===cc.color)):0;
+  const idxStr=cidx!=null?String(cidx):'null';
+
+  const html=`<div class="modal" style="width:520px" onclick="event.stopPropagation()">
+    <div class="modal-title">${cc?`${cc.bank} ${cc.label} — Kart Ayarları`:'Yeni Kart Ekle'}</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Banka Adı</label><input class="form-input" id="cc-bank" value="${cc?cc.bank:''}" placeholder="Garanti BBVA"></div>
+      <div class="form-group"><label class="form-label">Kart Adı / Etiketi</label><input class="form-input" id="cc-label" value="${cc?cc.label:''}" placeholder="Bonus"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Kart Sahibi</label>
+        <select class="form-input" id="cc-owner">${MEMBERS.map(m=>`<option ${cc&&cc.owner===m.name?'selected':''}>${m.name}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label class="form-label">Son 4 Hane</label><input class="form-input" id="cc-last4" value="${cc?cc.number.slice(-4):''}" placeholder="1234" maxlength="4" style="font-family:var(--mono)"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Limit (₺)</label><input class="form-input" type="number" id="cc-limit" value="${cc?cc.limitTRY:''}" placeholder="500000"></div>
+      <div class="form-group"><label class="form-label">Mevcut Borç (₺)</label><input class="form-input" type="number" id="cc-spent" value="${cc?cc.spentTRY:0}" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Hesap Kesim Günü</label>
+        <select class="form-input" id="cc-cutday">
+          ${[1,5,8,10,12,14,15,18,20,22,25,28].map(d=>`<option value="${d}" ${cc&&cc.cutDay===d?'selected':''}>${d}. gün</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Son Ödeme (kesim + gün)</label>
+        <select class="form-input" id="cc-payoffset">
+          ${[7,10,14,17,20].map(d=>`<option value="${d}" ${cc&&cc.payOffset===d?'selected':d===10?'selected':''}>+${d} gün</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Kart Rengi</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${CARD_COLORS.map((c,ci)=>`<div onclick="document.querySelectorAll('.cc-color-swatch').forEach(s=>s.style.outline='none');this.style.outline='2px solid white';document.getElementById('cc-color-sel').value='${ci}'" class="cc-color-swatch" style="width:40px;height:24px;border-radius:6px;background:${c.val};cursor:pointer;${currentColorIdx===ci?'outline:2px solid white':''}" title="${c.label}"></div>`).join('')}
+        <input type="hidden" id="cc-color-sel" value="${currentColorIdx}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      ${cc?`<button class="btn btn-ghost" style="color:var(--red)" onclick="if(confirm('Bu kartı silmek istiyor musunuz?'))deleteCard(${idxStr})">Kartı Sil</button>`:''}
+      <button class="btn btn-primary" onclick="saveCardSettings(${idxStr})">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+const CARD_COLORS_LIST=[
+  'linear-gradient(135deg,#1a4a2e,#0d6b3a)',
+  'linear-gradient(135deg,#1e3a5f,#1a56a0)',
+  'linear-gradient(135deg,#4a1010,#991919)',
+  'linear-gradient(135deg,#2d1b69,#5b21b6)',
+  'linear-gradient(135deg,#0f2027,#203a43)',
+  'linear-gradient(135deg,#78350f,#b45309)',
+];
+
+window.saveCardSettings=function(idx){
+  const realIdx=(idx!=null&&idx!=='null'&&idx!==undefined)?parseInt(idx):null;
+  const last4=$('cc-last4').value.padStart(4,'0').slice(-4);
+  const colorIdx=parseInt($('cc-color-sel').value)||0;
+  const entry={
+    bank:$('cc-bank').value||'Banka',
+    label:$('cc-label').value||'Kart',
+    owner:$('cc-owner').value,
+    number:`•••• •••• •••• ${last4}`,
+    limitTRY:parseFloat($('cc-limit').value)||0,
+    spentTRY:parseFloat($('cc-spent').value)||0,
+    cutDay:parseInt($('cc-cutday').value)||15,
+    payOffset:parseInt($('cc-payoffset').value)||10,
+    color:CARD_COLORS_LIST[colorIdx]||CARD_COLORS_LIST[0],
+    txns: realIdx!=null&&CREDIT_CARDS[realIdx]?CREDIT_CARDS[realIdx].txns:[],
+  };
+  if(realIdx!=null)CREDIT_CARDS[realIdx]=entry;else CREDIT_CARDS.push(entry);
+  closeDynModal();switchPage('kartlar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('kartlar'))n.classList.add('active');});
+};
+window.deleteCard=function(idx){const i=parseInt(idx);CREDIT_CARDS.splice(i,1);closeDynModal();switchPage('kartlar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('kartlar'))n.classList.add('active');});};
+
+function pageBankalar(){
+  const total=totalBankTRY();
+  return`
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+    ${BANKS.map((b,i)=>`<div class="metric" style="border-left:3px solid ${b.color};background:${b.color}12;border-color:${b.color}40">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+        <div class="m-label" style="margin-bottom:0">${b.name}</div>
+        <button onclick="openBankModal(${i})" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:0" title="Düzenle">✎</button>
+      </div>
+      <div class="m-value" style="font-size:17px">${fmtTRY(b.balanceTRY)}</div>
+      <div class="m-sub">${fmtUSD(b.balanceTRY/FX,0)} · ${b.type}</div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button onclick="openMoneyMoveModal(${i},'ekle')" style="flex:1;background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);border-radius:7px;color:var(--green);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">+ Para Ekle</button>
+        <button onclick="openMoneyMoveModal(${i},'cıkar')" style="flex:1;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);border-radius:7px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">− Çıkar</button>
+      </div>
+    </div>`).join('')}
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Hesap Dağılımı</div></div>
+        <button class="btn btn-primary" onclick="openBankModal(null)">+ Hesap Ekle</button>
+      </div>
+      <div class="chart-wrap" style="height:180px"><canvas id="bankDonut"></canvas></div>
+      <div style="margin-top:12px">
+        ${BANKS.map((b,i)=>`<div class="bank-item">
+          <div class="bank-logo" style="background:${b.color}22;color:${b.color}">${b.logo}</div>
+          <div class="bank-info"><div class="bank-name">${b.name}</div><div class="bank-type">${b.type}</div></div>
+          <div style="text-align:right">
+            <div style="font-family:var(--mono);font-size:13px;font-weight:500">${fmtTRY(b.balanceTRY)}</div>
+            <div style="font-size:10px;color:var(--text3)">${fmtUSD(b.balanceTRY/FX,0)} · %${Math.round(b.balanceTRY/total*100)}</div>
+          </div>
+        </div>`).join('')}
+        <div style="padding:10px 0 0;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+          <span style="color:var(--text3);font-size:12px">Toplam</span>
+          <div style="text-align:right">
+            <div style="font-family:var(--mono);font-size:15px;font-weight:600">${fmtTRY(total)}</div>
+            <div style="font-size:11px;color:var(--teal)">${fmtUSD(total/FX,0)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Para Hareketleri</div><div class="card-sub">Son işlemler</div></div>
+      <div id="bankMovements">
+        ${(window.BANK_MOVEMENTS||[]).length===0
+          ? `<div style="text-align:center;color:var(--text3);padding:30px 0;font-size:12px">Henüz para hareketi yok.<br>Hesap kartlarındaki + / − butonlarını kullanın.</div>`
+          : (window.BANK_MOVEMENTS||[]).slice().reverse().slice(0,12).map(m=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:28px;height:28px;border-radius:8px;background:${m.type==='ekle'?'rgba(52,211,153,.15)':'rgba(248,113,113,.12)'};display:flex;align-items:center;justify-content:center;font-size:14px">${m.type==='ekle'?'↓':'↑'}</div>
+            <div>
+              <div style="font-size:12px;font-weight:500">${m.bank} · ${m.desc}</div>
+              <div style="font-size:10px;color:var(--text3)">${m.date}</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:${m.type==='ekle'?'var(--green)':'var(--red)'}">${m.type==='ekle'?'+':'-'}${fmtTRY(m.amountTRY)}</div>
+            <div style="font-size:10px;color:var(--text3)">${fmtUSD(m.amountTRY/FX,0)}</div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Nakit Akışı</div><div class="card-sub">Aylık giriş / çıkış (₺ bin)</div></div>
+    <div class="chart-wrap" style="height:180px"><canvas id="cashflow"></canvas></div>
+    <div style="margin-top:12px;font-size:11px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+      <div style="background:var(--bg3);border-radius:8px;padding:10px">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Toplam Banka</div>
+        <div style="font-family:var(--mono);font-weight:500">${fmtTRY(total)}</div>
+        <div style="font-size:10px;color:var(--teal)">${fmtUSD(total/FX,0)}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:10px">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Kredi Kartı Borcu</div>
+        <div style="font-family:var(--mono);font-weight:500;color:var(--red)">-${fmtTRY(totalCCTRY())}</div>
+        <div style="font-size:10px;color:var(--red)">-${fmtUSD(totalCCTRY()/FX,0)}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:10px">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Net Nakit</div>
+        <div style="font-family:var(--mono);font-weight:600;color:var(--green)">${fmtTRY(total-totalCCTRY())}</div>
+        <div style="font-size:10px;color:var(--green)">${fmtUSD((total-totalCCTRY())/FX,0)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function pageYatirimlar(){
+  const items=INVESTMENTS.items;
+  const totalInv=items.reduce((s,i)=>s+i.invested,0);
+  const totalCur=items.reduce((s,i)=>s+i.current,0);
+  const totalKar=totalCur-totalInv;
+  const totalRate=((totalKar/totalInv)*100).toFixed(1);
+  const types=['kripto','hisse','altin','fon','bes'];
+
+  return`
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+    <div class="metric c-amber"><div class="m-label">Yatırılan</div><div class="m-value">${fmtUSD(totalInv/FX,0)}</div><div class="m-sub">${fmtTRY(totalInv)}</div></div>
+    <div class="metric c-teal"><div class="m-label">Güncel Değer</div><div class="m-value">${fmtUSD(totalCur/FX,0)}</div><div class="m-sub">${fmtTRY(totalCur)}</div></div>
+    <div class="metric c-green"><div class="m-label">Toplam Kâr</div><div class="m-value">${fmtUSD(totalKar/FX,0)}</div><div class="m-sub">${fmtTRY(totalKar)}</div><div class="m-change up">+%${totalRate}</div></div>
+    <div class="metric c-purple"><div class="m-label">Kâr Oranı</div><div class="m-value">%${totalRate}</div><div class="m-sub">Toplam portföy</div></div>
+    <div class="metric c-blue"><div class="m-label">Son Güncelleme</div><div class="m-value" style="font-size:13px">${INVESTMENTS.lastUpdated.split(',')[0]}</div><div class="m-sub">${INVESTMENTS.lastUpdated.split(',')[1]?.trim()}</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Aylık Getiri Karşılaştırması</div><div class="card-sub">Tüm kategoriler — son 6 ay %</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${types.map(t=>`<span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:${INV_COLORS[t]};display:inline-block"></span>${INV_LABELS[t]}</span>`).join('')}
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:220px"><canvas id="invMonthly"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Portföy Özeti — Kategori Bazlı</div><div class="card-sub">Haftalık güncelleme · Alt enstrümanlar dahil toplam</div></div>
+      <button class="btn btn-primary" onclick="openInvUpdateModal()">↻ Haftalık Güncelle</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Kategori</th><th>Yatırılan ($)</th><th>Yatırılan (₺)</th><th>Güncel Değer ($)</th><th>Güncel Değer (₺)</th><th>Kâr ($)</th><th>Kâr (₺)</th><th>Kâr Oranı</th><th>Aylık Değişim</th></tr></thead>
+      <tbody>
+      ${types.map(type=>{
+        const typeItems=items.filter(i=>i.type===type);
+        const inv=typeItems.reduce((s,i)=>s+i.invested,0);
+        const cur=typeItems.reduce((s,i)=>s+i.current,0);
+        const kar=cur-inv;
+        const rate=((kar/inv)*100).toFixed(1);
+        const positive=kar>=0;
+        // avg last month return
+        const lastMonthAvg=(typeItems.reduce((s,i)=>s+i.monthly[5],0)/typeItems.length).toFixed(1);
+        const lmPos=parseFloat(lastMonthAvg)>=0;
+        return`<tr>
+          <td><span class="badge" style="background:${INV_COLORS[type]}18;color:${INV_COLORS[type]};font-size:11px;padding:4px 10px">${INV_LABELS[type]}</span></td>
+          <td style="font-family:var(--mono)">${fmtUSD(inv/FX,0)}</td>
+          <td style="font-family:var(--mono);color:var(--text3)">${fmtTRY(inv)}</td>
+          <td style="font-family:var(--mono);font-weight:500">${fmtUSD(cur/FX,0)}</td>
+          <td style="font-family:var(--mono);color:var(--text3)">${fmtTRY(cur)}</td>
+          <td style="font-family:var(--mono);color:${positive?'var(--green)':'var(--red)'};font-weight:500">${positive?'+':''}${fmtUSD(kar/FX,0)}</td>
+          <td style="font-family:var(--mono);color:${positive?'var(--green)':'var(--red)'}">${positive?'+':''}${fmtTRY(kar)}</td>
+          <td><span class="badge ${positive?'badge-green':'badge-red'}">${positive?'+':''}%${rate}</span></td>
+          <td><span class="badge ${lmPos?'badge-green':'badge-red'}" style="font-family:var(--mono)">${lmPos?'+':''}%${lastMonthAvg} bu ay</span></td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function deleteTransaction(idx){
+  const t=allTransactions[idx];
+  // Revert card limit if applicable
+  if(t.card&&t.try){
+    const cc=getCardByLabel(t.card);
+    if(cc) cc.spentTRY=Math.max(0,cc.spentTRY-t.try);
+  }
+  allTransactions.splice(idx,1);
+  switchPage('harcamalar',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('harcamalar'))n.classList.add('active');});
+}
+window.deleteTransaction=deleteTransaction;
+
+function pageHarcamalar(){
+  return`
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Tüm Harcamalar</div><div class="card-sub">${allTransactions.length} işlem</div></div>
+      <button class="btn btn-primary" onclick="openModal()">+ Ekle</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Ürün / Marka</th><th>Miktar</th><th>Kategori</th><th>Kişi</th><th>Kart</th><th>USD</th><th>Kur</th><th>₺ Tutarı</th><th style="width:36px"></th></tr></thead>
+      <tbody>${allTransactions.map((t,idx)=>`<tr>
+        <td style="color:var(--text3);font-family:var(--mono);white-space:nowrap">${t.date}</td>
+        <td style="font-weight:500">${t.desc}${t.installment?` <span style="font-size:9px;background:#22d3ee18;color:var(--teal);padding:1px 6px;border-radius:3px;font-family:var(--mono);font-weight:600">${t.installment.current}/${t.installment.total} taksit</span>`:''}</td>
+        <td style="font-size:11px;color:var(--text3)">${t.brand||'—'}</td>
+        <td style="font-size:11px;color:var(--text3);font-family:var(--mono)">${t.qty?t.qty+(t.unit?' '+t.unit:''):'—'}</td>
+        <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
+        <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
+        <td style="font-size:11px;color:var(--text3)">${t.card}</td>
+        <td style="font-family:var(--mono);font-weight:500">${fmtUSD(t.usd,2)}</td>
+        <td><span class="fx-badge">₺${t.rate}</span></td>
+        <td style="font-family:var(--mono)">${fmtTRY(t.try)}</td>
+        <td><button onclick="deleteTransaction(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.color='var(--red)';this.style.background='rgba(248,113,113,.1)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'" title="Sil">✕</button></td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function pageKisiler(){
+  const MEMBER_COLORS=['#4f8ef7','#7c5af5','#34d399','#fbbf24','#f87171','#22d3ee','#f472b6','#fb923c','#a78bfa','#6ee7b7'];
+  return`
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Aile Üyeleri</div><div class="card-sub">${MEMBERS.length} üye</div></div>
+      <button class="btn btn-primary" onclick="openMemberModal(null)">+ Üye Ekle</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+      ${MEMBERS.map((m,i)=>{
+        const txns=allTransactions.filter(t=>t.member===m.name);
+        const tot=txns.reduce((s,t)=>s+t.usd,0);
+        return`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px;position:relative">
+          <div class="avatar" style="width:42px;height:42px;font-size:14px;background:${m.color}22;color:${m.color};flex-shrink:0">${m.initials}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+            <div style="font-size:11px;color:var(--text3)">${txns.length} işlem · ${fmtUSD(tot)}</div>
+          </div>
+          <button onclick="openMemberModal(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:4px;border-radius:4px;flex-shrink:0;transition:all .15s" onmouseover="this.style.color='var(--text)';this.style.background='var(--bg4)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'">✎</button>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <div class="grid-2">${MEMBERS.map((m,i)=>{
+    const txns=allTransactions.filter(t=>t.member===m.name);
+    const tot=txns.reduce((s,t)=>s+t.usd,0);
+    const byCat={};
+    CATEGORIES.forEach(c=>byCat[c]=0);
+    txns.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.usd);
+    const catEntries=Object.entries(byCat).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+    return`<div class="card">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+        <div class="avatar" style="width:46px;height:46px;font-size:15px;background:${m.color}22;color:${m.color}">${m.initials}</div>
+        <div><div style="font-size:15px;font-weight:600">${m.name}</div><div style="font-size:11px;color:var(--text3)">${txns.length} işlem bu ay</div></div>
+        <div style="margin-left:auto;text-align:right">
+          <div style="font-size:18px;font-weight:600;font-family:var(--mono);color:${m.color}">${fmtUSD(tot)}</div>
+          <div style="font-size:10px;color:var(--text3)">${fmtTRY(tot*FX)}</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Harcama Kategorileri</div>
+      ${catEntries.length===0
+        ? `<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px 0">Henüz harcama yok</div>`
+        : catEntries.map(([cat,amt])=>{
+          const pct=Math.round(amt/tot*100);
+          return`<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;border-radius:2px;background:${CAT_COLORS[cat]||'#888'};flex-shrink:0;display:inline-block"></span>
+                <span style="font-size:12px">${cat}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--mono);font-size:12px;font-weight:500">${fmtUSD(amt)}</span>
+                <span style="font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 6px;border-radius:4px;font-family:var(--mono)">%${pct}</span>
+              </div>
+            </div>
+            <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${CAT_COLORS[cat]||'#888'};border-radius:3px"></div>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ─── MEMBER MODAL ─────────────────────────────────────────────────────────────
+const MEMBER_COLORS=['#4f8ef7','#7c5af5','#34d399','#fbbf24','#f87171','#22d3ee','#f472b6','#fb923c','#a78bfa','#6ee7b7'];
+
+window.openMemberModal=function(idx){
+  const m=idx!=null?MEMBERS[idx]:null;
+  const usedColors=MEMBERS.filter((_,i)=>i!==idx).map(x=>x.color);
+  const html=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">${m?'Üye Düzenle':'Yeni Üye Ekle'}</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Ad Soyad</label>
+        <input class="form-input" id="mb-name" value="${m?m.name:''}" placeholder="Ad Soyad">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kısaltma (2-3 harf)</label>
+        <input class="form-input" id="mb-init" value="${m?m.initials:''}" placeholder="AK" maxlength="3"
+          style="font-family:var(--mono);text-transform:uppercase;font-size:15px;font-weight:600;letter-spacing:.08em"
+          oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Renk</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        ${MEMBER_COLORS.map((c,ci)=>`
+          <div onclick="document.querySelectorAll('.mb-color-sw').forEach(s=>s.style.outline='none');this.style.outline='2px solid white';document.getElementById('mb-color-val').value='${c}'"
+            class="mb-color-sw"
+            style="width:32px;height:32px;border-radius:50%;background:${c};cursor:pointer;transition:transform .15s;${m&&m.color===c?'outline:2px solid white;transform:scale(1.15)':''}"
+            title="${c}"
+            onmouseover="this.style.transform='scale(1.1)'"
+            onmouseout="this.style.transform=this.style.outline?'scale(1.15)':'scale(1)'">
+          </div>`).join('')}
+        <input type="hidden" id="mb-color-val" value="${m?m.color:MEMBER_COLORS[0]}">
+      </div>
+    </div>
+    ${m ? `
+    <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.18);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text3);margin-top:4px">
+      ⚠ Üye silinirse bu üyeye ait harcama kayıtlarındaki isim değişmez, yalnızca üye listesinden kaldırılır.
+    </div>` : ''}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      ${m?`<button class="btn btn-ghost" style="color:var(--red)" onclick="deleteMember(${idx})">Sil</button>`:''}
+      <button class="btn btn-primary" onclick="saveMember(${idx!=null?idx:'null'})">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveMember=function(idx){
+  const name=$('mb-name').value.trim();
+  const initials=$('mb-init').value.trim().toUpperCase();
+  const color=$('mb-color-val').value;
+  if(!name){alert('Ad boş olamaz.');return;}
+  const id=name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  const entry={id, name, initials:initials||(name.slice(0,2).toUpperCase()), color};
+  if(idx!=null) MEMBERS[idx]={...MEMBERS[idx],...entry};
+  else MEMBERS.push(entry);
+  // Update modal dropdowns everywhere
+  refreshMemberDropdowns();
+  closeDynModal();
+  switchPage('kisiler',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('kisiler'))n.classList.add('active');});
+};
+
+window.deleteMember=function(idx){
+  const m=MEMBERS[idx];
+  const txnCount=allTransactions.filter(t=>t.member===m.name).length;
+  const msg=txnCount>0
+    ?`${m.name} silinsin mi? Bu kişiye ait ${txnCount} harcama kaydı etkilenmez ama üye listesinden kaldırılır.`
+    :`${m.name} silinsin mi?`;
+  if(!confirm(msg)) return;
+  MEMBERS.splice(idx,1);
+  refreshMemberDropdowns();
+  closeDynModal();
+  switchPage('kisiler',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('kisiler'))n.classList.add('active');});
+};
+
+function refreshMemberDropdowns(){
+  // Update the harcama modal member select if it's open
+  const sel=$('f-member');
+  if(sel){
+    const cur=sel.value;
+    sel.innerHTML=MEMBERS.map(m=>`<option ${m.name===cur?'selected':''}>${m.name}</option>`).join('');
+  }
+  const iSel=$('inc-member');
+  if(iSel) iSel.innerHTML=MEMBERS.map(m=>`<option>${m.name}</option>`).join('');
+}
+
+// ─── CHART INITS ─────────────────────────────────────────────────────────────
+function initCharts(page){
+  if(page==='ozet'){
+    destroyChart('ozBudgetLine');
+    new Chart($('ozBudgetLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
+      {label:'Planlanan',data:PLAN_EXP_USD,borderColor:'#4f8ef760',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef760',borderWidth:1.5},
+      {label:'Gerçekleşen',data:ACTUAL_EXP_USD,borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+    destroyChart('ozDonut');
+    new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:BUDGET_DATA.map(b=>b.actual),backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
+    destroyChart('ozVarlik');
+    const bankV=totalBankTRY(),invV=totalInvTRY();
+    new Chart($('ozVarlik'),{type:'doughnut',data:{labels:['Banka','Yatırım'],datasets:[{data:[bankV,invV],backgroundColor:['#22d3ee99','#7c5af599'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
+  }
+  if(page==='butce'){
+    destroyChart('butceLine');
+    new Chart($('butceLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
+      {label:'Planlanan',data:PLAN_EXP_USD,borderColor:'#4f8ef760',borderDash:[6,4],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef760',borderWidth:1.5},
+      {label:'Gerçekleşen',data:ACTUAL_EXP_USD,borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v},min:1000,max:2600}}}});
+    destroyChart('butceBar');
+    new Chart($('butceBar'),{type:'bar',data:{labels:BUDGET_DATA.map(b=>b.cat),datasets:[
+      {label:'Planlanan',data:BUDGET_DATA.map(b=>b.planned),backgroundColor:'#4f8ef730',borderRadius:3,barPercentage:.55,borderWidth:1,borderColor:'#4f8ef760'},
+      {label:'Gerçekleşen',data:BUDGET_DATA.map(b=>b.actual),backgroundColor:BUDGET_DATA.map(b=>b.actual>b.planned?'#f87171bb':'#34d399bb'),borderRadius:3,barPercentage:.55},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+  }
+  if(page==='tahmin'){
+    const ALL_M=['Eki','Kas','Ara','Oca','Şub','Mar','Nis','May','Haz'];
+    const ALL_INC=[2800,2900,3100,3000,3100,3200,3250,3300,3350];
+    const ALL_PL=[1300,1310,1350,1310,1330,1344,1360,1370,1380];
+    const ALL_AC=[1980,2100,2350,2050,1980,2138,null,null,null];
+    const SAV=ALL_INC.map((v,i)=>v-(ALL_AC[i]??ALL_PL[i]));
+    destroyChart('tahminLine');
+    new Chart($('tahminLine'),{type:'line',data:{labels:ALL_M,datasets:[
+      {label:'Gelir',data:ALL_INC,borderColor:'#4f8ef7',tension:.4,pointRadius:ALL_M.map((_,i)=>3),pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#4f8ef7':'#4f8ef750'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}},
+      {label:'Gider',data:ALL_AC.map((v,i)=>v??ALL_PL[i]),borderColor:'#f87171',tension:.4,pointRadius:3,pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#f87171':'#f8717150'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}},
+      {label:'Tasarruf',data:SAV,borderColor:'#34d399',backgroundColor:'#34d39908',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#34d399':'#34d39950'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+    const rates=INCOME_USD.map((v,i)=>Math.round((INCOME_USD[i]-ACTUAL_EXP_USD[i])/v*100));
+    destroyChart('savRate');
+    new Chart($('savRate'),{type:'bar',data:{labels:MONTHS_LABELS,datasets:[{data:rates,backgroundColor:rates.map(r=>r>=30?'#34d399bb':r>=20?'#fbbf24bb':'#f87171bb'),borderRadius:5,barPercentage:.65}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>v+'%'},min:0,max:45}}}});
+    destroyChart('cumChart');
+    let cum=0;const cumD=ALL_INC.map((v,i)=>{cum+=v-(ALL_AC[i]??ALL_PL[i]);return cum});
+    new Chart($('cumChart'),{type:'line',data:{labels:ALL_M,datasets:[{data:cumD,borderColor:'#22d3ee',backgroundColor:'#22d3ee10',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#22d3ee':'#22d3ee50'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+  }
+  if(page==='bankalar'){
+    destroyChart('bankDonut');
+    new Chart($('bankDonut'),{type:'doughnut',data:{labels:BANKS.map(b=>b.name),datasets:[{data:BANKS.map(b=>b.balanceTRY),backgroundColor:BANKS.map(b=>b.color+'cc'),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
+    destroyChart('cashflow');
+    new Chart($('cashflow'),{type:'bar',data:{labels:MONTHS_LABELS,datasets:[
+      {label:'Giriş',data:INCOME_USD.map(v=>Math.round(v*FX/1000)),backgroundColor:'#34d39966',borderRadius:4,barPercentage:.6},
+      {label:'Çıkış',data:ACTUAL_EXP_USD.map(v=>-Math.round(v*FX/1000)),backgroundColor:'#f8717166',borderRadius:4,barPercentage:.6},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>Math.abs(v)+'K₺'}}}}});
+  }
+  if(page==='yatirimlar'){
+    destroyChart('invMonthly');
+    const types=['kripto','hisse','altin','fon','bes'];
+    // avg monthly return per type
+    const avgByType=types.map(type=>{
+      const typeItems=INVESTMENTS.items.filter(i=>i.type===type);
+      return MONTHS_LABELS.map((_,mi)=>{
+        const vals=typeItems.map(item=>item.monthly[mi]);
+        return +(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2);
+      });
+    });
+    new Chart($('invMonthly'),{type:'line',data:{labels:MONTHS_LABELS,datasets:types.map((type,ti)=>({
+      label:INV_LABELS[type],data:avgByType[ti],borderColor:INV_COLORS[type],
+      backgroundColor:INV_COLORS[type]+'18',fill:false,tension:.4,pointRadius:4,
+      pointBackgroundColor:INV_COLORS[type],borderWidth:2,
+    }))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>v+'%'}}}}});
+  }
+}
+
+// ─── GELIRLER PAGE ───────────────────────────────────────────────────────────
+function pageGelirler(){
+  const totalUSD=INCOME_RECORDS.reduce((s,r)=>s+r.usd,0);
+  const byCat={};INCOME_RECORDS.forEach(r=>byCat[r.cat]=(byCat[r.cat]||0)+r.usd);
+  const catColors={Maaş:'#4f8ef7','Kira Geliri':'#34d399','Ek Gelir':'#fbbf24',Temettü:'#a78bfa',Diğer:'#8b909e'};
+  return`
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric c-blue"><div class="m-label">Toplam Gelir (Bu Ay)</div><div class="m-value">${fmtUSD(totalUSD)}</div><div class="m-sub">${fmtTRY(totalUSD*FX)}</div></div>
+    <div class="metric c-green"><div class="m-label">Maaş</div><div class="m-value">${fmtUSD(byCat['Maaş']||0)}</div></div>
+    <div class="metric c-teal"><div class="m-label">Kira Geliri</div><div class="m-value">${fmtUSD(byCat['Kira Geliri']||0)}</div></div>
+    <div class="metric c-amber"><div class="m-label">Ek Gelir</div><div class="m-value">${fmtUSD((byCat['Ek Gelir']||0)+(byCat['Temettü']||0)+(byCat['Diğer']||0))}</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Gelir Kayıtları</div><div class="card-sub">${INCOME_RECORDS.length} kayıt</div></div>
+      <button class="btn btn-primary" onclick="openIncomeModal()">+ Gelir Ekle</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>USD</th><th>Kur</th><th>₺ Tutarı</th><th style="width:36px"></th></tr></thead>
+      <tbody>${INCOME_RECORDS.map((r,i)=>`<tr>
+        <td style="color:var(--text3);font-family:var(--mono)">${r.date}</td>
+        <td style="font-weight:500">${r.desc}</td>
+        <td><span class="tag" style="background:${catColors[r.cat]||'#888'}18;color:${catColors[r.cat]||'#888'}">${r.cat}</span></td>
+        <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(r.member)}22;color:${mColor(r.member)}">${mInit(r.member)}</div>${r.member}</div></td>
+        <td style="font-family:var(--mono);font-weight:500;color:var(--green)">+${fmtUSD(r.usd,2)}</td>
+        <td><span class="fx-badge">₺${r.rate}</span></td>
+        <td style="font-family:var(--mono);color:var(--green)">+${fmtTRY(r.usd*r.rate)}</td>
+        <td><button onclick="deleteIncome(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.color='var(--red)';this.style.background='rgba(248,113,113,.1)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button></td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+window.deleteIncome=function(i){INCOME_RECORDS.splice(i,1);switchPage('gelirler',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});};
+
+// ─── BORÇ/ALACAK PAGE ────────────────────────────────────────────────────────
+function pageBorclar(){
+  // Her kartın gelecek 3 ekstresi — taksit dağılımı ile
+  const ccDebts = [];
+  CREDIT_CARDS.forEach(cc=>{
+    if(!cc.spentTRY && (!cc.txns||cc.txns.length===0)) return;
+    const today=new Date();
+    const byPeriod={};
+    (cc.txns||[]).forEach(t=>{
+      const key=t.billingPeriod||'Bilinmeyen';
+      if(!byPeriod[key]) byPeriod[key]=0;
+      byPeriod[key]+=t.try||Math.round(t.usd*(t.rate||FX));
+    });
+    if(Object.keys(byPeriod).length===0){
+      const cut=new Date(today.getFullYear(),today.getMonth(),cc.cutDay);
+      if(cut<today)cut.setMonth(cut.getMonth()+1);
+      const dateLabel=`${cut.getDate()} ${MN_TR[cut.getMonth()]}`;
+      const eid=`cc_${cc.label}_0`;
+      if(!PAID_EKSTRES.has(eid))
+        ccDebts.push({id:eid,type:'verecek',person:`${cc.bank} ${cc.label}`,
+          desc:'Kredi kartı ekstresi',usd:+(cc.spentTRY/FX).toFixed(2),
+          rate:FX,try:cc.spentTRY,date:dateLabel,status:'bekliyor',isAuto:true,ccLabel:cc.label});
+      return;
+    }
+    Object.entries(byPeriod).forEach(([period,totalTRY])=>{
+      const eid=`cc_${cc.label}_${period.replace(' ','_')}`;
+      if(PAID_EKSTRES.has(eid)) return; // ödendi — listede gösterme
+      const parts=period.split(' ');
+      const mo=MN_TR.indexOf(parts[0]);
+      const yr=parseInt(parts[1])||today.getFullYear();
+      const cutDate=new Date(yr,mo<0?today.getMonth():mo,cc.cutDay);
+      const dateLabel=`${cc.cutDay} ${MN_TR[cutDate.getMonth()]}`;
+      ccDebts.push({id:eid,type:'verecek',person:`${cc.bank} ${cc.label}`,
+        desc:`${period} ekstresi`,usd:+(totalTRY/FX).toFixed(2),
+        rate:FX,try:totalTRY,date:dateLabel,status:'bekliyor',isAuto:true,
+        ccLabel:cc.label,_sortDate:cutDate});
+    });
+  });
+
+  function parseDateLabel(label){
+    if(!label) return new Date(9999,0,1);
+    const parts=label.split(' ');
+    const mo=MN_TR.indexOf(parts[1]);
+    return new Date(2026,mo<0?0:mo,parseInt(parts[0])||1);
+  }
+
+  const allEntries=[...ALACAK_VERECEK,...ccDebts];
+  const alacaklar=allEntries.filter(a=>a.type==='alacak').sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  const verecekler=allEntries.filter(a=>a.type==='verecek').sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  const totalAlacakTRY=alacaklar.reduce((s,a)=>s+(a.try||Math.round(a.usd*(a.rate||FX))),0);
+  const totalVerecekTRY=verecekler.reduce((s,a)=>s+(a.try||Math.round(a.usd*(a.rate||FX))),0);
+  const totalAlacak=+(totalAlacakTRY/FX).toFixed(0);
+  const totalVerecek=+(totalVerecekTRY/FX).toFixed(0);
+
+  const renderRow=(a)=>{
+    const tryAmt=a.try||Math.round(a.usd*(a.rate||FX));
+    const usdAmt=+(tryAmt/FX).toFixed(2);
+    const isGreen=a.type==='alacak';
+    const statusMap={'ödendi':'badge-green','bekliyor':'badge-amber','gecikti':'badge-red','kısmi':'badge-blue'};
+    const statusLabel={'ödendi':'Ödendi','bekliyor':'Bekliyor','gecikti':'Gecikti','kısmi':'Kısmi'};
+    return`<tr style="${a.isAuto?'background:rgba(248,113,113,.04)':''}">
+      <td style="color:var(--text3);font-family:var(--mono)">${a.date}</td>
+      <td style="font-weight:500">${a.person}${a.isAuto?` <span style="font-size:9px;background:rgba(251,191,36,.15);color:var(--amber);padding:1px 5px;border-radius:3px">otomatik</span>`:''}</td>
+      <td style="color:var(--text3);font-size:11px">${a.desc}</td>
+      <td style="font-family:var(--mono);font-weight:600;color:${isGreen?'var(--green)':'var(--red)'}">${isGreen?'+':'-'}${fmtTRY(tryAmt)}</td>
+      <td style="font-size:10px;color:var(--text3)">${isGreen?'+':'-'}${fmtUSD(usdAmt,2)}<br><span class="fx-badge" style="font-size:9px">${'\u20ba'}${(+(a.rate||FX)).toFixed(2)}</span></td>
+      <td><span class="badge ${statusMap[a.status]||'badge-amber'}" ${a.isAuto?'':(`style="cursor:pointer" onclick="toggleAVStatus(${a.id})"`)}>
+        ${statusLabel[a.status]||'Bekliyor'}</span></td>
+      <td style="white-space:nowrap">
+        ${a.isAuto
+          ?`<button onclick="markEkstreOdendi('${a.id}')" style="background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);border-radius:6px;cursor:pointer;color:var(--green);font-size:11px;padding:4px 10px;font-family:var(--font);transition:all .15s;white-space:nowrap" onmouseover="this.style.background='rgba(52,211,153,.25)'" onmouseout="this.style.background='rgba(52,211,153,.12)'">✓ Ödendi</button>`
+          :`<button onclick="openAVModal('${a.type}',${a.id})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'" title="Düzenle">✎</button>
+             <button onclick="deleteAV(${a.id})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button>`}
+      </td>
+    </tr>`;
+  };
+
+  return`
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
+    <div class="metric c-green"><div class="m-label">Toplam Alacak</div><div class="m-value" style="color:var(--green)">${fmtTRY(totalAlacakTRY)}</div><div class="m-sub">${fmtUSD(totalAlacak,0)} \u00b7 ${alacaklar.length} kayıt</div></div>
+    <div class="metric c-red"><div class="m-label">Toplam Verecek</div><div class="m-value" style="color:var(--red)">${fmtTRY(totalVerecekTRY)}</div><div class="m-sub">${fmtUSD(totalVerecek,0)} \u00b7 ${ccDebts.length} kart otomatik</div></div>
+    <div class="metric c-${totalAlacakTRY>=totalVerecekTRY?'green':'red'}"><div class="m-label">Net Durum</div>
+      <div class="m-value" style="color:${totalAlacakTRY>=totalVerecekTRY?'var(--green)':'var(--red)'}">
+        ${totalAlacakTRY>=totalVerecekTRY?'+':'-'}${fmtTRY(Math.abs(totalAlacakTRY-totalVerecekTRY))}</div>
+      <div class="m-sub">Kur: \u20ba${FX}</div></div>
+  </div>
+  <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text2);margin-bottom:14px">
+    <span style="color:var(--amber)">\u24d8</span> Tüm tutarlar <strong>\u20ba TL</strong> bazlıdır. Kredi kartı borçları güncel kur (\u20ba${FX}) ile hesaplanır.
+    <button onclick="switchPage('kartlar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('kartlar'))n.classList.add('active');})" style="background:none;border:none;color:var(--accent);cursor:pointer;font-family:var(--font);font-size:11px;padding:0;margin-left:4px">Kredi Kartları \u2192</button>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title" style="color:var(--green)">Alacaklar</div><div class="card-sub">${alacaklar.length} kayıt \u00b7 tarih sıralı</div></div>
+        <button class="btn btn-primary" onclick="openAVModal('alacak')">+ Alacak Ekle</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Son Tarih</th><th>Kişi</th><th>Açıklama</th><th>\u20ba Tutar</th><th>$ / Kur</th><th>Durum</th><th style="width:80px"></th></tr></thead>
+        <tbody>${alacaklar.map(a=>renderRow(a)).join('')}${alacaklar.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Alacak kaydı yok</td></tr>':''}</tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title" style="color:var(--red)">Verecekler</div><div class="card-sub">${verecekler.length} kayıt \u00b7 tarih sıralı</div></div>
+        <button class="btn btn-ghost" onclick="openAVModal('verecek')">+ Verecek Ekle</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Son Tarih</th><th>Kişi</th><th>Açıklama</th><th>\u20ba Tutar</th><th>$ / Kur</th><th>Durum</th><th style="width:80px"></th></tr></thead>
+        <tbody>${verecekler.map(a=>renderRow(a)).join('')}${verecekler.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Verecek kaydı yok</td></tr>':''}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+window.deleteAV=function(id){const i=ALACAK_VERECEK.findIndex(a=>a.id===id);if(i>-1)ALACAK_VERECEK.splice(i,1);switchPage('borclar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('borclar'))n.classList.add('active');});};
+window.toggleAVStatus=function(id){const a=ALACAK_VERECEK.find(x=>x.id===id);if(a)a.status=a.status==='ödendi'?'bekliyor':'ödendi';switchPage('borclar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('borclar'))n.classList.add('active');});};
+
+window.markEkstreOdendi=function(eid){
+  if(!confirm('Bu ekstre ödenmiş olarak işaretlensin mi? Listeden kaldırılacak.')) return;
+  PAID_EKSTRES.add(eid);
+  switchPage('borclar',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('borclar'))n.classList.add('active');});
+};
+
+
+// ─── NAVIGATION ──────────────────────────────────────────────────────────────
+const PAGE_TITLES={ozet:'Genel Özet',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',kisiler:'Aile Üyeleri'};
+const PAGE_FNS={ozet:pageOzet,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,kisiler:pageKisiler};
+let currentPage='ozet';
+
+function switchPage(name,el){
+  currentPage=name;
+  if(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');}
+  $('pageTitle').textContent=PAGE_TITLES[name]||name;
+  $('mainContent').innerHTML=PAGE_FNS[name]?PAGE_FNS[name]():'';
+  setTimeout(()=>initCharts(name),60);
+}
+window.switchPage=switchPage;
+
+// ─── MODAL ───────────────────────────────────────────────────────────────────
+// ─── EKSTRA DÖNEM HESAPLAMALARI ───────────────────────────────────────────────
+const MN_TR=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+
+function getBillingPeriods(cc, fromDate, count=6){
+  // Returns array of {label, year, month, cutDay} for next N billing periods
+  const periods=[];
+  const base = fromDate ? new Date(fromDate) : new Date();
+  let yr=base.getFullYear(), mo=base.getMonth();
+  // If already past cut day this month, first period is next month
+  if(base.getDate()>=cc.cutDay){ mo++; if(mo>11){mo=0;yr++;} }
+  for(let i=0;i<count;i++){
+    let m=mo+i, y=yr+Math.floor(m/12); m=m%12;
+    periods.push({label:`${MN_TR[m]} ${y} (${cc.cutDay}. kesim)`, year:y, month:m, cutDay:cc.cutDay});
+  }
+  return periods;
+}
+
+window.updatePeriodSelector=function(){
+  const method=$('f-method')?.value;
+  const cc=getCardByLabel(method);
+  const wrap=$('f-period-wrap');
+  const sel=$('f-period');
+  if(!wrap||!sel) return;
+  if(!cc){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  const dateRaw=$('f-date').value;
+  const periods=getBillingPeriods(cc, dateRaw);
+  sel.innerHTML=periods.map((p,i)=>`<option value="${i}">${i===0?'Bu dönem — ':''}${p.label}</option>`).join('');
+  updateInstallmentPreview();
+};
+
+window.updateInstallmentPreview=function(){
+  const method=$('f-method')?.value;
+  const cc=getCardByLabel(method);
+  const prev=$('f-period-preview');
+  if(!prev||!cc) return;
+  const inst=parseInt($('f-inst')?.value)||1;
+  const tryVal=parseFloat($('f-try-in')?.value)||0;
+  const rate=parseFloat($('f-rate')?.value)||FX;
+  const usd=rate>0?+(tryVal/rate).toFixed(2):0;
+  const dateRaw=$('f-date')?.value;
+  if(!tryVal){prev.innerHTML='';return;}
+
+  const selIdx=parseInt($('f-period')?.value)||0;
+  const startPeriods=getBillingPeriods(cc,dateRaw,24);
+  const firstPeriod=startPeriods[selIdx];
+  if(!firstPeriod){prev.innerHTML='';return;}
+
+  if(inst===1){
+    prev.innerHTML=`<strong>${firstPeriod.label}</strong> ekstresine yansır → ${fmtTRY(tryVal)}`;
+  } else {
+    const perTRY=Math.round(tryVal/inst);
+    const perUSD=+(usd/inst).toFixed(2);
+    let rows=[];
+    for(let i=0;i<Math.min(inst,4);i++){
+      let mo=firstPeriod.month+i,yr=firstPeriod.year+Math.floor(mo/12);mo=mo%12;
+      rows.push(`${MN_TR[mo]} ${yr} → ${fmtTRY(perTRY)} ≈ ${fmtUSD(perUSD,2)}`);
+    }
+    if(inst>4) rows.push(`... ve ${inst-4} dönem daha`);
+    prev.innerHTML=rows.join('<br>');
+  }
+};
+
+window.openModal=()=>{
+  // Dinamik dropdownları doldur
+  const mem=$('f-member');
+  if(mem) mem.innerHTML=MEMBERS.map(m=>`<option>${m.name}</option>`).join('');
+  const meth=$('f-method');
+  if(meth) meth.innerHTML=`<option value="Nakit">Nakit</option>${CREDIT_CARDS.map(cc=>`<option value="${cc.label}">${cc.bank} ${cc.label}</option>`).join('')}`;
+  // Kuru ayarla
+  const rateEl=$('f-rate');
+  if(rateEl) rateEl.value=FX;
+  // Tarihi bugüne ayarla
+  const dateEl=$('f-date');
+  if(dateEl) dateEl.value=new Date().toISOString().slice(0,10);
+  // Sıfırla
+  const fields=['f-try-in','f-usd-disp','f-inst-amt','f-desc','f-brand','f-qty'];
+  fields.forEach(id=>{const el=$(id);if(el)el.value='';});
+  const instEl=$('f-inst');if(instEl)instEl.value='1';
+  const instInfo=$('f-inst-info');if(instInfo)instInfo.style.display='none';
+  updateCardInfo();
+  updatePeriodSelector();
+  $('modal').classList.add('open');
+};
+window.closeModal=()=>$('modal').classList.remove('open');
+
+function getCardByLabel(label){
+  return CREDIT_CARDS.find(c=>c.label===label||c.bank+' '+c.label===label||label.includes(c.label));
+}
+
+window.updateCardInfo=function(){
+  const method=$('f-method')?.value;
+  const cc=getCardByLabel(method);
+  const info=$('f-card-info');
+  if(!info) return;
+  if(cc){
+    const avail=cc.limitTRY-cc.spentTRY;
+    info.style.display='block';
+    info.innerHTML=`<strong>${cc.bank} ${cc.label}</strong> — Kalan: <strong>${fmtTRY(avail)}</strong> · Kesim: her ayın <strong>${cc.cutDay}.</strong> günü`;
+  } else {
+    info.style.display='none';
+  }
+  calcUSD();
+};
+
+// Ana hesaplama: TL gir → kur gir → USD otomatik
+window.calcUSD=function(){
+  const tryVal=parseFloat($('f-try-in')?.value)||0;
+  const rate=parseFloat($('f-rate')?.value)||FX;
+  const inst=parseInt($('f-inst')?.value)||1;
+  const usd=rate>0?+(tryVal/rate).toFixed(2):0;
+
+  const dispEl=$('f-usd-disp');
+  if(dispEl) dispEl.value=tryVal>0?fmtUSD(usd,2):'—';
+
+  const amtEl=$('f-inst-amt');
+  const infoEl=$('f-inst-info');
+  if(tryVal>0&&inst>1){
+    const perTRY=Math.round(tryVal/inst);
+    const perUSD=+(usd/inst).toFixed(2);
+    if(amtEl) amtEl.value=`${fmtTRY(perTRY)} / ay`;
+    if(infoEl){
+      infoEl.style.display='block';
+      infoEl.innerHTML=`${inst} taksit × ${fmtTRY(perTRY)} = ${fmtTRY(tryVal)} · Her taksit ≈ ${fmtUSD(perUSD,2)}`;
+    }
+  } else {
+    if(amtEl) amtEl.value=tryVal>0?'Tek çekim':'—';
+    if(infoEl) infoEl.style.display='none';
+  }
+  updateInstallmentPreview();
+};
+
+// Geriye dönük uyumluluk (eski kodlar calcTRY çağırıyorsa)
+window.calcTRY=window.calcUSD;
+
+window.addTransaction=function(){
+  const tryVal=parseFloat($('f-try-in').value)||0;
+  const rate=parseFloat($('f-rate').value)||FX;
+  const inst=parseInt($('f-inst').value)||1;
+  const method=$('f-method').value;
+  const dateRaw=$('f-date').value;
+
+  if(tryVal<=0){alert('Lütfen ₺ tutarı girin.');return;}
+
+  const usd=+(tryVal/rate).toFixed(2);
+
+  const baseT={
+    desc:$('f-desc').value||'Harcama',
+    cat:$('f-cat').value,
+    member:$('f-member').value,
+    card:method,
+    bank:method,
+    rate:rate,
+    brand:$('f-brand').value||null,
+    qty:parseFloat($('f-qty').value)||null,
+    unit:$('f-unit').value||null,
+  };
+
+  const cc=getCardByLabel(method);
+  const selPeriodIdx=parseInt($('f-period')?.value)||0;
+  const periods=cc?getBillingPeriods(cc,dateRaw,24):null;
+  const firstPeriod=periods?periods[selPeriodIdx]:null;
+
+  if(inst===1){
+    let dateDisplay;
+    if(firstPeriod){
+      dateDisplay=`${firstPeriod.cutDay} ${MN_TR[firstPeriod.month]}`;
+    } else {
+      const d=new Date(dateRaw);
+      dateDisplay=`${d.getDate()} ${MN_TR[d.getMonth()]}`;
+    }
+    const t={...baseT,date:dateDisplay,usd,try:Math.round(tryVal),
+      installment:null,billingPeriod:firstPeriod?`${MN_TR[firstPeriod.month]} ${firstPeriod.year}`:null};
+    allTransactions.unshift(t);
+    if(cc){cc.spentTRY+=Math.round(tryVal);cc.txns.unshift({date:dateDisplay,desc:baseT.desc,cat:baseT.cat,member:baseT.member,usd,rate,try:Math.round(tryVal),billingPeriod:t.billingPeriod});}
+  } else {
+    const perTRY=Math.round(tryVal/inst);
+    const perUSD=+(usd/inst).toFixed(2);
+    const purchaseDate=new Date(dateRaw);
+    const purchaseLabel=`${purchaseDate.getDate()} ${MN_TR[purchaseDate.getMonth()]}`;
+    for(let i=0;i<inst;i++){
+      let mo=(firstPeriod?firstPeriod.month:purchaseDate.getMonth())+i;
+      let yr=(firstPeriod?firstPeriod.year:purchaseDate.getFullYear())+Math.floor(mo/12);
+      mo=mo%12;
+      const cutDay=cc?cc.cutDay:1;
+      const instDateDisplay=`${cutDay} ${MN_TR[mo]}`;
+      const billingPeriod=`${MN_TR[mo]} ${yr}`;
+      const t={...baseT,date:instDateDisplay,usd:perUSD,try:perTRY,
+        installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},billingPeriod};
+      allTransactions.push(t);
+      if(cc){cc.spentTRY+=perTRY;cc.txns.push({date:instDateDisplay,desc:`${baseT.desc} (${i+1}/${inst})`,cat:baseT.cat,member:baseT.member,usd:perUSD,rate,try:perTRY,billingPeriod});}
+    }
+    allTransactions.sort((a,b)=>new Date('2026 '+b.date)-new Date('2026 '+a.date));
+  }
+
+  closeModal();
+  switchPage(currentPage,null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes(currentPage))n.classList.add('active');});
+};
+
+// ─── BANK MODAL ──────────────────────────────────────────────────────────────
+window.openBankModal=function(idx){
+  const b=idx!=null?BANKS[idx]:null;
+  const html=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">${b?'Banka Hesabı Düzenle':'Yeni Banka Hesabı'}</div>
+    <div class="form-group"><label class="form-label">Banka Adı</label><input class="form-input" id="bk-name" value="${b?b.name:''}" placeholder="Garanti BBVA"></div>
+    <div class="form-group"><label class="form-label">Hesap Türü</label>
+      <select class="form-input" id="bk-type">
+        ${['Vadesiz Hesap','Vadeli Mevduat','Altın Hesabı','Döviz Hesabı','Yatırım Hesabı'].map(t=>`<option ${b&&b.type===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Bakiye (₺)</label><input class="form-input" type="number" id="bk-bal" value="${b?b.balanceTRY:''}" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Logo (1-3 harf)</label><input class="form-input" id="bk-logo" value="${b?b.logo:''}" placeholder="GB" maxlength="3"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Renk</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${['#16a34a','#1d4ed8','#dc2626','#d97706','#7c5af5','#0891b2','#be185d','#374151'].map(c=>`
+        <div onclick="document.getElementById('bk-color').value='${c}';document.querySelectorAll('.cc-swatch').forEach(s=>s.style.outline='none');this.style.outline='2px solid white'" class="cc-swatch" style="width:28px;height:28px;border-radius:6px;background:${c};cursor:pointer;${b&&b.color===c?'outline:2px solid white':''}"></div>`).join('')}
+        <input type="color" id="bk-color" value="${b?b.color:'#16a34a'}" style="width:28px;height:28px;border:none;border-radius:6px;cursor:pointer;padding:0;background:none">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      ${b?`<button class="btn btn-ghost" style="color:var(--red)" onclick="deleteBank(${idx})">Sil</button>`:''}
+      <button class="btn btn-primary" onclick="saveBankModal(${idx!=null?idx:'null'})">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+window.saveBankModal=function(idx){
+  const entry={name:$('bk-name').value,type:$('bk-type').value,balanceTRY:parseFloat($('bk-bal').value)||0,logo:$('bk-logo').value||'?',color:$('bk-color').value};
+  if(idx!=null)BANKS[idx]={...BANKS[idx],...entry};else BANKS.push(entry);
+  closeDynModal();switchPage('bankalar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('bankalar'))n.classList.add('active');});
+};
+window.deleteBank=function(idx){BANKS.splice(idx,1);closeDynModal();switchPage('bankalar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('bankalar'))n.classList.add('active');});};
+
+// ─── BANK MONEY MOVEMENT MODAL ───────────────────────────────────────────────
+if(!window.BANK_MOVEMENTS) window.BANK_MOVEMENTS = [];
+
+window.openMoneyMoveModal = function(bankIdx, type){
+  const b = BANKS[bankIdx];
+  const isEkle = type === 'ekle';
+  const borderC = isEkle ? 'rgba(52,211,153,.2)' : 'rgba(248,113,113,.2)';
+  const bgC = isEkle ? 'rgba(52,211,153,.08)' : 'rgba(248,113,113,.08)';
+  const btnC = isEkle ? '#059669' : '#dc2626';
+  const html = `<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:${isEkle?'var(--green)':'var(--red)'}">${isEkle ? '+ Para Ekle' : '− Para Çıkar'} — ${b.name}</div>
+    <div style="background:${bgC};border:1px solid ${borderC};border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px">
+      Mevcut bakiye: <strong style="font-family:var(--mono)">${fmtTRY(b.balanceTRY)}</strong>
+    </div>
+    <div class="form-group"><label class="form-label">Tarih</label><input class="form-input" type="date" id="mm-date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Tutar (₺)</label><input class="form-input" type="number" id="mm-try" placeholder="0" oninput="const v=parseFloat(this.value)||0;document.getElementById('mm-usd-disp').textContent=v>0?'≈ '+fmtUSD(v/FX,0):''"></div>
+      <div class="form-group"><label class="form-label">≈ USD</label><div id="mm-usd-disp" style="padding:9px 12px;font-family:var(--mono);color:var(--teal)"></div></div>
+    </div>
+    <div class="form-group"><label class="form-label">Açıklama</label><input class="form-input" id="mm-desc" placeholder="${isEkle?'Maaş, havale, faiz...':'Fatura, çekim, transfer...'}"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" style="background:${btnC}" onclick="saveMoneyMove(${bankIdx},'${type}')">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveMoneyMove = function(bankIdx, type){
+  const b = BANKS[bankIdx];
+  const amount = parseFloat($('mm-try').value) || 0;
+  if(amount <= 0){ alert('Geçerli bir tutar girin.'); return; }
+  if(type === 'cıkar' && amount > b.balanceTRY){
+    if(!confirm(`Bakiye yetersiz (${fmtTRY(b.balanceTRY)}). Yine de devam?`)) return;
+  }
+  const dateRaw = $('mm-date').value;
+  const d = new Date(dateRaw);
+  const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  const dateLabel = `${d.getDate()} ${MN[d.getMonth()]}`;
+  if(type === 'ekle') b.balanceTRY += amount;
+  else b.balanceTRY = Math.max(0, b.balanceTRY - amount);
+  window.BANK_MOVEMENTS.push({ bank:b.name, type, amountTRY:amount, desc:$('mm-desc').value||(type==='ekle'?'Para yatırma':'Para çekme'), date:dateLabel });
+  closeDynModal();
+  switchPage('bankalar', null);
+  document.querySelectorAll('.nav-item').forEach(n=>{ if(n.getAttribute('onclick')?.includes('bankalar')) n.classList.add('active'); });
+};
+
+// ─── INVESTMENT UPDATE MODAL ──────────────────────────────────────────────────
+window.openInvUpdateModal=function(){
+  const types=['kripto','hisse','altin','fon','bes'];
+  const today=new Date();
+  const dow=today.getDay(); // 0=Sun
+  const lastSun=new Date(today);lastSun.setDate(today.getDate()-dow);
+  const nextSun=new Date(today);nextSun.setDate(today.getDate()+(7-dow)%7||7);
+  const fmt2=d=>`${d.getDate()} ${['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'][d.getMonth()]} ${d.getFullYear()}`;
+
+  const rows=types.map(type=>{
+    const items=INVESTMENTS.items.filter(i=>i.type===type);
+    const inv=items.reduce((s,i)=>s+i.invested,0);
+    const cur=items.reduce((s,i)=>s+i.current,0);
+    return`<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span class="badge" style="background:${INV_COLORS[type]}18;color:${INV_COLORS[type]}">${INV_LABELS[type]}</span>
+        <span style="font-size:11px;color:var(--text3)">Mevcut: <span style="font-family:var(--mono)">${fmtTRY(cur)}</span></span>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Yatırılan (₺)</label>
+          <input class="form-input" type="number" id="inv-inv-${type}" value="${inv}" placeholder="0">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Güncel Değer (₺)</label>
+          <input class="form-input" type="number" id="inv-cur-${type}" value="${cur}" placeholder="0">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const html=`<div class="modal" style="width:520px" onclick="event.stopPropagation()">
+    <div class="modal-title">Yatırım Güncelle — Haftalık</div>
+    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--amber)">
+      Pazar güncellemesi · Son: <strong>${fmt2(lastSun)}</strong> · Sonraki: <strong>${fmt2(nextSun)}</strong>
+    </div>
+    ${rows}
+    <div class="form-group" style="margin-top:12px">
+      <label class="form-label">Bu haftanın aylık getiri oranı (%) — isteğe bağlı</label>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+        ${types.map(t=>`<div>
+          <label style="font-size:10px;color:${INV_COLORS[t]}">${INV_LABELS[t]}</label>
+          <input class="form-input" type="number" id="inv-ret-${t}" step="0.1" placeholder="+0.0" style="margin-top:4px">
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveInvUpdate()">Güncelle</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+window.saveInvUpdate=function(){
+  const types=['kripto','hisse','altin','fon','bes'];
+  types.forEach(type=>{
+    const newInv=parseFloat($('inv-inv-'+type).value)||null;
+    const newCur=parseFloat($('inv-cur-'+type).value)||null;
+    const newRet=parseFloat($('inv-ret-'+type).value);
+    const items=INVESTMENTS.items.filter(i=>i.type===type);
+    if(newInv!=null){const total=items.reduce((s,i)=>s+i.invested,0);const ratio=total>0?newInv/total:1;items.forEach(i=>i.invested=Math.round(i.invested*ratio));}
+    if(newCur!=null){const total=items.reduce((s,i)=>s+i.current,0);const ratio=total>0?newCur/total:1;items.forEach(i=>i.current=Math.round(i.current*ratio));}
+    if(!isNaN(newRet)&&newRet!==0)items.forEach(i=>{i.monthly=i.monthly.slice(1);i.monthly.push(newRet);});
+  });
+  INVESTMENTS.lastUpdated=new Date().toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'})+', '+new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  closeDynModal();switchPage('yatirimlar',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('yatirimlar'))n.classList.add('active');});
+};
+
+// ─── INCOME MODAL ─────────────────────────────────────────────────────────────
+window.openIncomeModal=function(){
+  const html=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Gelir Ekle</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Tarih</label><input class="form-input" type="date" id="inc-date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="form-group"><label class="form-label">Kategori</label>
+        <select class="form-input" id="inc-cat">
+          <option>Maaş</option><option>Kira Geliri</option><option>Ek Gelir</option><option>Temettü</option><option>Diğer</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Açıklama</label><input class="form-input" id="inc-desc" placeholder="Gelir açıklaması..."></div>
+    <div class="form-group"><label class="form-label">Aile Üyesi</label>
+      <select class="form-input" id="inc-member">${MEMBERS.map(m=>`<option>${m.name}</option>`).join('')}</select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Tutar (USD)</label><input class="form-input" type="number" id="inc-usd" placeholder="0.00" oninput="const r=parseFloat(document.getElementById('inc-rate').value)||FX;const u=parseFloat(this.value)||0;document.getElementById('inc-try-disp').textContent=u>0?'₺'+Math.round(u*r).toLocaleString('tr-TR'):''"></div>
+      <div class="form-group"><label class="form-label">Kur (₺/$)</label><input class="form-input" type="number" id="inc-rate" value="${FX}"></div>
+    </div>
+    <div style="font-size:12px;color:var(--green);font-family:var(--mono);margin-bottom:12px" id="inc-try-disp"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveIncome()">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+window.saveIncome=function(){
+  const dateRaw=$('inc-date').value;
+  const monthNames=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  const d=new Date(dateRaw);
+  const label=`${d.getDate()} ${monthNames[d.getMonth()]}`;
+  INCOME_RECORDS.unshift({id:incNextId++,date:label,desc:$('inc-desc').value||'Gelir',member:$('inc-member').value,cat:$('inc-cat').value,usd:parseFloat($('inc-usd').value)||0,rate:parseFloat($('inc-rate').value)||FX});
+  closeDynModal();switchPage('gelirler',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});
+};
+
+// ─── AV MODAL ─────────────────────────────────────────────────────────────────
+// openAVModal(type, id?) — id varsa düzenleme, yoksa yeni kayıt
+window.openAVModal=function(type, editId){
+  const existing = editId!=null ? ALACAK_VERECEK.find(a=>a.id===editId) : null;
+  const isEdit = !!existing;
+  const label = type==='alacak' ? 'Alacak' : 'Verecek';
+  const color = type==='alacak' ? 'var(--green)' : 'var(--red)';
+  const btnBg = type==='alacak' ? '#059669' : '#dc2626';
+
+  // Convert stored date label back to ISO for date input
+  const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  let dateVal = new Date().toISOString().slice(0,10);
+  if(existing?.date){
+    const parts = existing.date.split(' ');
+    if(parts.length===2){
+      const day = parts[0].padStart(2,'0');
+      const mon = String(MN.indexOf(parts[1])+1).padStart(2,'0');
+      dateVal = `2026-${mon}-${day}`;
+    }
+  }
+
+  const html=`<div class="modal" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div class="modal-title" style="color:${color};margin-bottom:0">${isEdit ? label+' Düzenle' : 'Yeni '+label+' Ekle'}</div>
+      ${isEdit ? `<span class="badge ${existing.status==='ödendi'?'badge-green':'badge-amber'}" style="font-size:11px">${existing.status==='ödendi'?'Ödendi':'Bekliyor'}</span>` : ''}
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Kişi / Kurum</label>
+        <input class="form-input" id="av-person" value="${existing?.person||''}" placeholder="Ad Soyad veya kurum...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Son Tarih</label>
+        <input class="form-input" type="date" id="av-date" value="${dateVal}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Açıklama</label>
+      <input class="form-input" id="av-desc" value="${existing?.desc||''}" placeholder="Açıklama...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tutar (USD)</label>
+        <input class="form-input" type="number" id="av-usd" value="${existing?.usd||''}" placeholder="0.00"
+          oninput="const r=parseFloat(document.getElementById('av-rate').value)||FX;const u=parseFloat(this.value)||0;document.getElementById('av-try-disp').textContent=u>0?'≈ '+fmtTRY(u*r):''">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kur (₺/$)</label>
+        <input class="form-input" type="number" id="av-rate" value="${existing?.rate||FX}"
+          oninput="const u=parseFloat(document.getElementById('av-usd').value)||0;const r=parseFloat(this.value)||FX;document.getElementById('av-try-disp').textContent=u>0?'≈ '+fmtTRY(u*r):''">
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--amber);font-family:var(--mono);margin-bottom:12px;min-height:18px" id="av-try-disp">${existing?.usd ? '≈ '+fmtTRY(existing.usd*existing.rate) : ''}</div>
+    ${isEdit ? `
+    <div class="form-group">
+      <label class="form-label">Durum</label>
+      <select class="form-input" id="av-status">
+        <option value="bekliyor" ${existing.status==='bekliyor'?'selected':''}>Bekliyor</option>
+        <option value="ödendi" ${existing.status==='ödendi'?'selected':''}>Ödendi / Tamamlandı</option>
+        <option value="kısmi" ${existing.status==='kısmi'?'selected':''}>Kısmi ödeme yapıldı</option>
+        <option value="gecikti" ${existing.status==='gecikti'?'selected':''}>Gecikti</option>
+      </select>
+    </div>` : ''}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      ${isEdit ? `<button class="btn btn-ghost" style="color:var(--red)" onclick="if(confirm('Bu kaydı silmek istiyor musunuz?')){deleteAV(${editId});}">Sil</button>` : ''}
+      <button class="btn btn-primary" style="background:${btnBg}" onclick="saveAV('${type}',${editId!=null?editId:'null'})">
+        ${isEdit ? 'Güncelle' : 'Kaydet'}
+      </button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveAV=function(type, editId){
+  const dateRaw=$('av-date').value;
+  const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  const d=new Date(dateRaw);
+  const dateLabel=`${d.getDate()} ${MN[d.getMonth()]}`;
+  const usd=parseFloat($('av-usd').value)||0;
+  const rate=parseFloat($('av-rate').value)||FX;
+  const person=$('av-person').value||'?';
+  const desc=$('av-desc').value||'';
+  const status=$('av-status')?.value||'bekliyor';
+
+  if(editId!=null){
+    // Update existing record
+    const idx=ALACAK_VERECEK.findIndex(a=>a.id===editId);
+    if(idx>-1){
+      ALACAK_VERECEK[idx]={...ALACAK_VERECEK[idx], person, desc, usd, rate, date:dateLabel, status};
+    }
+  } else {
+    // New record
+    ALACAK_VERECEK.push({id:avNextId++, type, person, desc, usd, rate, date:dateLabel, status:'bekliyor'});
+  }
+  closeDynModal();
+  switchPage('borclar',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('borclar'))n.classList.add('active');});
+};
+
+// ─── DYNAMIC MODAL HELPER ─────────────────────────────────────────────────────
+function showDynModal(html){
+  let ov=$('dynModalOverlay');
+  if(!ov){ov=document.createElement('div');ov.id='dynModalOverlay';ov.className='modal-overlay';ov.onclick=e=>{if(e.target===ov)closeDynModal();};document.body.appendChild(ov);}
+  ov.innerHTML=html;ov.classList.add('open');
+}
+function closeDynModal(){const ov=$('dynModalOverlay');if(ov)ov.classList.remove('open');}
+window.closeDynModal=closeDynModal;
+
+// ─── STATE SERIALIZATION ─────────────────────────────────────────────────────
+function collectState(){
+  return {
+    v:3, FX, fxUpdated,
+    MEMBERS,
+    BANKS,
+    CREDIT_CARDS: CREDIT_CARDS.map(cc=>({...cc})),
+    INVESTMENTS,
+    ALACAK_VERECEK,
+    avNextId,
+    INCOME_RECORDS,
+    incNextId,
+    allTransactions,
+    BUDGET_DATA,
+    BANK_MOVEMENTS: window.BANK_MOVEMENTS||[],
+    PAID_EKSTRES: [...PAID_EKSTRES],
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function applyState(s){
+  if(!s) return;
+  if(s.FX){FX=s.FX;fxUpdated=s.fxUpdated||fxUpdated;const d=$('fxDisplay');if(d)d.textContent='₺'+FX;const r=$('f-rate');if(r)r.value=FX;}
+  if(s.MEMBERS&&s.MEMBERS.length) MEMBERS.splice(0,MEMBERS.length,...s.MEMBERS);
+  if(s.BANKS) BANKS.splice(0,BANKS.length,...s.BANKS);
+  if(s.CREDIT_CARDS) CREDIT_CARDS.splice(0,CREDIT_CARDS.length,...s.CREDIT_CARDS);
+  if(s.INVESTMENTS){INVESTMENTS.lastUpdated=s.INVESTMENTS.lastUpdated;INVESTMENTS.items=s.INVESTMENTS.items;}
+  if(s.ALACAK_VERECEK) ALACAK_VERECEK.splice(0,ALACAK_VERECEK.length,...s.ALACAK_VERECEK);
+  if(s.avNextId) avNextId=s.avNextId;
+  if(s.INCOME_RECORDS) INCOME_RECORDS.splice(0,INCOME_RECORDS.length,...s.INCOME_RECORDS);
+  if(s.incNextId) incNextId=s.incNextId;
+  if(s.allTransactions) allTransactions.splice(0,allTransactions.length,...s.allTransactions);
+  if(s.BUDGET_DATA) BUDGET_DATA.splice(0,BUDGET_DATA.length,...s.BUDGET_DATA);
+  if(s.BANK_MOVEMENTS) window.BANK_MOVEMENTS=s.BANK_MOVEMENTS;
+  if(s.PAID_EKSTRES) PAID_EKSTRES=new Set(s.PAID_EKSTRES);
+}
+
+// ─── PERSISTENCE ─────────────────────────────────────────────────────────────
+// Katman 1: GitHub Gist (cihazlar arası otomatik, ücretsiz)
+// Katman 2: localStorage (aynı bilgisayar, çevrimdışı yedek)
+// Katman 3: JSON dosya (manuel yedek)
+
+const LS_KEY   = 'butce_data_v2';
+const LS_CLOUD = 'butce_gist_cfg';
+let saveTimer  = null;
+let _gistCfg   = null;
+
+function getGistCfg(){
+  if(_gistCfg) return _gistCfg;
+  try{ _gistCfg=JSON.parse(localStorage.getItem(LS_CLOUD)||'null'); }catch(e){}
+  return _gistCfg;
+}
+function setGistCfg(cfg){ _gistCfg=cfg; localStorage.setItem(LS_CLOUD,JSON.stringify(cfg)); }
+
+function showSaveStatus(msg,color='var(--green)'){
+  const el=$('saveIndicator');
+  if(el) el.innerHTML=`<span style="color:${color}">${msg}</span>`;
+}
+function updateCloudBtn(){
+  const lbl=$('cloudBtnLabel');
+  if(!lbl) return;
+  const cfg=getGistCfg();
+  lbl.textContent = cfg?.gistId ? '✓ GitHub' : 'GitHub Gist';
+  lbl.parentElement.style.color = cfg?.gistId ? 'var(--green)' : 'var(--text3)';
+  lbl.parentElement.style.borderColor = cfg?.gistId ? 'rgba(52,211,153,.4)' : '';
+}
+
+// ── GitHub Gist API ───────────────────────────────────────────────────────────
+const GIST_FILENAME = 'butce-panel-data.json';
+const GIST_API = 'https://api.github.com/gists';
+
+async function gistSave(){
+  const cfg=getGistCfg();
+  if(!cfg?.token) return false;
+  const content=JSON.stringify(collectState(),null,2);
+  const headers={'Content-Type':'application/json','Authorization':`token ${cfg.token}`,'Accept':'application/vnd.github+json'};
+  const body=JSON.stringify({description:'Bütçe Paneli Verisi',public:false,files:{[GIST_FILENAME]:{content}}});
+  try{
+    let res;
+    if(cfg.gistId) res=await fetch(`${GIST_API}/${cfg.gistId}`,{method:'PATCH',headers,body});
+    else           res=await fetch(GIST_API,{method:'POST',headers,body});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data=await res.json();
+    if(!cfg.gistId&&data.id){ setGistCfg({...cfg,gistId:data.id}); updateCloudBtn(); }
+    const t=new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+    showSaveStatus(`✓ ${t} GitHub kaydedildi`,'var(--green)');
+    return true;
+  }catch(e){ console.warn('Gist kayıt:',e.message); showSaveStatus(`⚠ GitHub: ${e.message}`,'var(--red)'); return false; }
+}
+
+async function gistLoad(){
+  const cfg=getGistCfg();
+  if(!cfg?.token||!cfg?.gistId) return false;
+  try{
+    const res=await fetch(`${GIST_API}/${cfg.gistId}`,{headers:{'Authorization':`token ${cfg.token}`,'Accept':'application/vnd.github+json'}});
+    if(res.status===401) throw new Error('401 — Token geçersiz veya süresi dolmuş');
+    if(res.status===403) throw new Error('403 — Token Gist yetkisine sahip değil');
+    if(res.status===404) throw new Error('404 — Gist ID bulunamadı');
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data=await res.json();
+    const raw=data.files?.[GIST_FILENAME]?.content;
+    if(!raw){
+      // Gist var ama dosya adı farklı olabilir — mevcut dosyaları listele
+      const fileList=Object.keys(data.files||{}).join(', ');
+      throw new Error(`"${GIST_FILENAME}" bulunamadı. Gist'teki dosyalar: ${fileList||'(boş)'}`);
+    }
+    const s=JSON.parse(raw);
+    applyState(s);
+    if(s.savedAt){
+      const d=new Date(s.savedAt);
+      showSaveStatus(`✓ ${d.toLocaleDateString('tr-TR',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} — GitHub`,'var(--green)');
+    }
+    return true;
+  }catch(e){
+    console.warn('Gist yükleme:', e.message);
+    window._lastGistError=e.message;
+    return false;
+  }
+}
+
+// ── localStorage ──────────────────────────────────────────────────────────────
+function localSave(){
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(collectState())); return true; }catch(e){ return false; }
+}
+function localLoad(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(!raw) return false;
+    const s=JSON.parse(raw);
+    applyState(s);
+    if(s.savedAt){
+      const d=new Date(s.savedAt);
+      showSaveStatus(`💾 ${d.toLocaleDateString('tr-TR',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} — yerel`,'var(--text3)');
+    }
+    return true;
+  }catch(e){ return false; }
+}
+
+// ── Birleşik kayıt ────────────────────────────────────────────────────────────
+async function saveAll(){
+  localSave();
+  const ok=await gistSave();
+  if(!ok&&!getGistCfg()?.token){
+    const t=new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+    showSaveStatus(`💾 ${t} kaydedildi`,'var(--green)');
+  }
+}
+
+// Auto-save her sayfa değişiminde
+const _origSwitch=switchPage;
+window.switchPage=function(name,el){
+  _origSwitch(name,el);
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveAll,700);
+};
+
+// ── GitHub Gist Ayarları ──────────────────────────────────────────────────────
+window.openCloudSettings=function(){
+  const cfg=getGistCfg()||{};
+  const html=`<div class="modal" style="width:540px" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:var(--green)">GitHub Gist Senkronizasyonu</div>
+    <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:14px 16px;margin-bottom:18px;line-height:1.9;font-size:12px">
+      <strong style="color:var(--green)">Kurulum (3 adım, 3 dakika)</strong><br>
+      <strong>1.</strong> <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--accent)">github.com/settings/tokens/new</a> adresine git<br>
+      <strong>2.</strong> Note: "Bütçe" yaz · Expiration: "No expiration" · <strong>Gist</strong> kutusunu işaretle → Generate token<br>
+      <strong>3.</strong> Oluşan token'ı (ghp_...) aşağıya yapıştır → Kaydet<br>
+      <span style="color:var(--text3);font-size:11px">İlk kaydette Gist otomatik oluşur. Gist ID'yi diğer cihazlara da girersiniz.</span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">GitHub Personal Access Token</label>
+      <input class="form-input" id="gh-token" type="password" value="${cfg.token||''}" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-family:var(--mono);font-size:12px">
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Token sadece tarayıcınızda saklanır — yalnızca api.github.com'a gönderilir</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Gist ID <span style="font-weight:400;color:var(--text3)">(ilk kaydette otomatik oluşur)</span></label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="gh-gistid" value="${cfg.gistId||''}" placeholder="a1b2c3d4e5f6..." style="font-family:var(--mono);font-size:12px;flex:1">
+        ${cfg.gistId?`<button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${cfg.gistId}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='Kopyala',1800)})">Kopyala</button>
+        <a href="https://gist.github.com/${cfg.gistId}" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none;white-space:nowrap">Görüntüle ↗</a>`:''}
+      </div>
+    </div>
+    ${cfg.gistId?`<div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--green);margin-bottom:4px">✓ Bağlantı aktif — kaydettiğinizde GitHub Gist'e otomatik yazılır</div>`:''}
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      ${cfg.gistId?`<button class="btn btn-ghost" onclick="syncFromGist()" style="color:var(--teal)">↓ Gist'ten Yükle</button>`:''}
+      ${cfg.token?`<button class="btn btn-ghost" style="color:var(--red)" onclick="if(confirm('Bağlantıyı kes?')){setGistCfg(null);_gistCfg=null;updateCloudBtn();closeDynModal();}">Kes</button>`:''}
+      <button class="btn btn-primary" onclick="saveGistSettings()">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveGistSettings=function(){
+  const token=$('gh-token').value.trim();
+  const gistId=$('gh-gistid').value.trim();
+  if(!token){alert('Token boş olamaz.');return;}
+  setGistCfg({token,gistId:gistId||null});
+  updateCloudBtn();
+  closeDynModal();
+  showSaveStatus(gistId?'GitHub Gist bağlantısı kuruldu ✓':'Token kaydedildi — ilk değişiklikte Gist oluşacak','var(--green)');
+};
+
+window.syncFromGist=async function(){
+  closeDynModal();
+  showSaveStatus('↓ GitHub\'tan yükleniyor…','var(--text3)');
+  const ok=await gistLoad();
+  if(ok){
+    localSave();
+    switchPage(currentPage,null);
+    document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes(currentPage))n.classList.add('active');});
+  } else {
+    const err=window._lastGistError||'Bilinmeyen hata';
+    showSaveStatus(`⚠ ${err}`,'var(--red)');
+    alert(`GitHub Gist yükleme hatası:\n\n${err}\n\nGist ayarlarını kontrol edin.`);
+  }
+};
+
+// ── JSON Dışa / İçe Aktar ─────────────────────────────────────────────────────
+window.exportData=function(){
+  const blob=new Blob([JSON.stringify(collectState(),null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const d=new Date();
+  a.href=url;
+  a.download=`butce-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showSaveStatus('↓ JSON indirildi','var(--amber)');
+};
+
+window.importData=function(){$('importFileInput').value='';$('importFileInput').click();};
+
+window.handleImportFile=function(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const s=JSON.parse(e.target.result);
+      if(!s.BANKS&&!s.allTransactions) throw new Error('Geçersiz format');
+      if(!confirm(`"${file.name}" yüklensin mi?`)) return;
+      applyState(s);
+      saveAll();
+      switchPage(currentPage,null);
+      document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes(currentPage))n.classList.add('active');});
+      showSaveStatus(`✓ ${file.name} yüklendi`,'var(--green)');
+    }catch(err){alert('Dosya okunamadı: '+err.message);}
+  };
+  reader.readAsText(file);
+};
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+if(!window.BANK_MOVEMENTS) window.BANK_MOVEMENTS=[];
+
+(async function init(){
+  updateCloudBtn();
+  showSaveStatus('⟳ yükleniyor…','var(--text3)');
+
+  const cfg = getGistCfg();
+
+  if(!cfg?.token || !cfg?.gistId){
+    // No Gist config — try localStorage, then show setup banner
+    const localOk = localLoad();
+    if(!localOk) showSaveStatus('Veri yok — Gist bağlayın','var(--amber)');
+    switchPage('ozet', document.querySelector('.nav-item.active'));
+    // Show prominent setup banner after render
+    setTimeout(showGistSetupBanner, 200);
+    return;
+  }
+
+  // Gist config exists — try to load
+  const gistOk = await gistLoad();
+  if(!gistOk){
+    // Gist failed — fall back to local
+    const localOk = localLoad();
+    showSaveStatus('⚠ GitHub bağlanamadı — yerel veri kullanılıyor','var(--amber)');
+    switchPage('ozet', document.querySelector('.nav-item.active'));
+    setTimeout(()=>showGistErrorBanner(), 200);
+    return;
+  }
+
+  switchPage('ozet', document.querySelector('.nav-item.active'));
+})();
+
+function showGistSetupBanner(){
+  const content = $('mainContent');
+  if(!content) return;
+  const banner = document.createElement('div');
+  banner.id = 'gistBanner';
+  banner.style.cssText = 'margin-bottom:16px;background:linear-gradient(135deg,rgba(79,142,247,.12),rgba(124,90,245,.08));border:1px solid rgba(79,142,247,.3);border-radius:14px;padding:18px 22px;display:flex;align-items:center;gap:16px';
+  banner.innerHTML = `
+    <div style="width:40px;height:40px;border-radius:10px;background:rgba(79,142,247,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">☁</div>
+    <div style="flex:1">
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">GitHub Gist bağlantısı kurulmamış</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6">
+        Verilerinizi cihazlar arasında senkronize etmek için GitHub Personal Access Token ve Gist ID gerekli.
+        Daha önce veri girdiyseniz, eski token + Gist ID ile bağlanıp <strong style="color:var(--text)">Gist'ten Yükle</strong> diyerek verinizi geri getirebilirsiniz.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <button onclick="openCloudSettings()" class="btn btn-primary" style="white-space:nowrap">☁ Gist Bağla</button>
+      <button onclick="this.closest('#gistBanner').remove()" class="btn btn-ghost" style="padding:7px 10px;font-size:16px;line-height:1">✕</button>
+    </div>`;
+  content.insertBefore(banner, content.firstChild);
+}
+
+function showGistErrorBanner(){
+  const content = $('mainContent');
+  if(!content) return;
+  const banner = document.createElement('div');
+  banner.id = 'gistErrBanner';
+  banner.style.cssText = 'margin-bottom:16px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:14px';
+  banner.innerHTML = `
+    <span style="font-size:18px">⚠</span>
+    <div style="flex:1;font-size:12px;color:var(--text2)">
+      GitHub Gist'e bağlanılamadı — yerel veriler gösteriliyor. Token süresi dolmuş veya internet bağlantısı yok olabilir.
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0">
+      <button onclick="syncFromGist()" class="btn btn-ghost btn-sm" style="color:var(--teal)">Tekrar Dene</button>
+      <button onclick="openCloudSettings()" class="btn btn-ghost btn-sm">Ayarlar</button>
+      <button onclick="this.closest('#gistErrBanner').remove()" class="btn btn-ghost btn-sm" style="padding:5px 8px">✕</button>
+    </div>`;
+  content.insertBefore(banner, content.firstChild);
+}
+</script>
+</body>
+</html>
