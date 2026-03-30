@@ -1671,16 +1671,18 @@ function pageBorclar(){
     });
   });
 
-  function parseDateLabel(label){
+  function parseDateLabel(label, entry){
+    if(entry?.dateISO) return new Date(entry.dateISO);
     if(!label) return new Date(9999,0,1);
     const parts=label.split(' ');
     const mo=MN_TR.indexOf(parts[1]);
-    return new Date(2026,mo<0?0:mo,parseInt(parts[0])||1);
+    const yr=entry?.year||new Date().getFullYear();
+    return new Date(yr,mo<0?0:mo,parseInt(parts[0])||1);
   }
 
   const allEntries=[...ALACAK_VERECEK,...ccDebts];
-  const alacaklar=allEntries.filter(a=>a.type==='alacak').sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
-  const verecekler=allEntries.filter(a=>a.type==='verecek').sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  const alacaklar=allEntries.filter(a=>a.type==='alacak').sort((a,b)=>parseDateLabel(a.date,a)-parseDateLabel(b.date,b));
+  const verecekler=allEntries.filter(a=>a.type==='verecek').sort((a,b)=>parseDateLabel(a.date,a)-parseDateLabel(b.date,b));
   const totalAlacakTRY=alacaklar.reduce((s,a)=>s+(a.try||Math.round(a.usd*(a.rate||FX))),0);
   const totalVerecekTRY=verecekler.reduce((s,a)=>s+(a.try||Math.round(a.usd*(a.rate||FX))),0);
   const totalAlacak=+(totalAlacakTRY/FX).toFixed(0);
@@ -1693,7 +1695,7 @@ function pageBorclar(){
     const statusMap={'ödendi':'badge-green','bekliyor':'badge-amber','gecikti':'badge-red','kısmi':'badge-blue'};
     const statusLabel={'ödendi':'Ödendi','bekliyor':'Bekliyor','gecikti':'Gecikti','kısmi':'Kısmi'};
     return`<tr style="${a.isAuto?'background:rgba(248,113,113,.04)':''}">
-      <td style="color:var(--text3);font-family:var(--mono)">${a.date}</td>
+      <td style="color:var(--text3);font-family:var(--mono)">${a.date}${a.year&&a.year!==new Date().getFullYear()?` <span style="font-size:9px;opacity:.7">${a.year}</span>`:''}</td>
       <td style="font-weight:500">${a.person}${a.isAuto?` <span style="font-size:9px;background:rgba(251,191,36,.15);color:var(--amber);padding:1px 5px;border-radius:3px">otomatik</span>`:''}</td>
       <td style="color:var(--text3);font-size:11px">${a.desc}</td>
       <td style="font-family:var(--mono);font-weight:600;color:${isGreen?'var(--green)':'var(--red)'}">${isGreen?'+':'-'}${fmtTRY(tryAmt)}</td>
@@ -2185,12 +2187,15 @@ window.openAVModal=function(type, editId){
 
   const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   let dateVal = new Date().toISOString().slice(0,10);
-  if(existing?.date){
+  if(existing?.dateISO){
+    dateVal = existing.dateISO;
+  } else if(existing?.date){
     const parts = existing.date.split(' ');
     if(parts.length===2){
       const day = parts[0].padStart(2,'0');
       const mon = String(MN.indexOf(parts[1])+1).padStart(2,'0');
-      dateVal = `2026-${mon}-${day}`;
+      const yr = existing.year || new Date().getFullYear();
+      dateVal = `${yr}-${mon}-${day}`;
     }
   }
 
@@ -2255,10 +2260,11 @@ window.openAVModal=function(type, editId){
 };
 
 window.saveAV=function(type, editId){
-  const dateRaw=$('av-date').value;
+  const dateRaw=$('av-date').value; // YYYY-MM-DD
   const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   const d=new Date(dateRaw);
   const dateLabel=`${d.getDate()} ${MN[d.getMonth()]}`;
+  const year=d.getFullYear();
   const tryVal=parseFloat($('av-try-in').value)||0;
   const rate=parseFloat($('av-rate').value)||FX;
   const usd=rate>0?+(tryVal/rate).toFixed(2):0;
@@ -2271,10 +2277,10 @@ window.saveAV=function(type, editId){
   if(editId!=null){
     const idx=ALACAK_VERECEK.findIndex(a=>a.id===editId);
     if(idx>-1){
-      ALACAK_VERECEK[idx]={...ALACAK_VERECEK[idx],person,desc,usd,rate,try:Math.round(tryVal),date:dateLabel,status};
+      ALACAK_VERECEK[idx]={...ALACAK_VERECEK[idx],person,desc,usd,rate,try:Math.round(tryVal),date:dateLabel,year,dateISO:dateRaw,status};
     }
   } else {
-    ALACAK_VERECEK.push({id:avNextId++,type,person,desc,usd,rate,try:Math.round(tryVal),date:dateLabel,status:'bekliyor'});
+    ALACAK_VERECEK.push({id:avNextId++,type,person,desc,usd,rate,try:Math.round(tryVal),date:dateLabel,year,dateISO:dateRaw,status:'bekliyor'});
   }
   closeDynModal();
   switchPage('borclar',null);
