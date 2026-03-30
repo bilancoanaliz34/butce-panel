@@ -419,10 +419,30 @@ let incNextId=5;
 const CATEGORIES = ['Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'];
 const CAT_COLORS  = {Kira:'#4f8ef7',Market:'#34d399',Ulaşım:'#22d3ee',Eğlence:'#a78bfa',Faturalar:'#fbbf24',Sağlık:'#f87171',Eğitim:'#fb923c',Giyim:'#f472b6',Diğer:'#8b909e'};
 
-const MONTHS_LABELS = ['Eki','Kas','Ara','Oca','Şub','Mar'];
-const INCOME_USD    = [2800,2900,3100,3000,3100,3200];
-const PLAN_EXP_USD  = [1300,1310,1350,1310,1330,1344];
-const ACTUAL_EXP_USD= [1980,2100,2350,2050,1980,2138];
+const MONTHS_LABELS = ['Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara','Oca','Şub','Mar'];
+// Tüm aylar için planlanan veriler (TL bazlı, sonra FX ile USD'ye çevirilir)
+let PLAN_INC_TRY  = [120000,120000,120000,120000,120000,120000,120000,120000,130000,120000,120000,120000];
+let PLAN_EXP_TRY  = [50000,50000,52000,50000,50000,50000,50000,53000,55000,50000,51000,51000];
+// Gerçekleşen veriler dinamik hesaplanır (INCOME_RECORDS ve allTransactions'dan)
+function getActualByMonth(){
+  const incByMonth=new Array(12).fill(0);
+  const expByMonth=new Array(12).fill(0);
+  const MN_IDX={Nis:0,May:1,Haz:2,Tem:3,Ağu:4,Eyl:5,Eki:6,Kas:7,Ara:8,Oca:9,Şub:10,Mar:11};
+  INCOME_RECORDS.forEach(r=>{
+    const parts=(r.date||'').split(' ');
+    const mo=MN_IDX[parts[1]];
+    if(mo!=null) incByMonth[mo]+=(r.try||Math.round((r.usd||0)*(r.rate||FX)));
+  });
+  allTransactions.forEach(t=>{
+    const parts=(t.date||'').split(' ');
+    const mo=MN_IDX[parts[1]];
+    if(mo!=null) expByMonth[mo]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
+  });
+  return{incByMonth,expByMonth};
+}
+const PLAN_EXP_USD  = PLAN_EXP_TRY.map(v=>Math.round(v/FX));
+const INCOME_USD    = PLAN_INC_TRY.map(v=>Math.round(v/FX));
+const ACTUAL_EXP_USD= PLAN_EXP_TRY.map(v=>Math.round(v/FX));
 
 const BUDGET_DATA = [
   {cat:'Kira',planned:234,actual:234},{cat:'Market',planned:260,actual:298},
@@ -555,13 +575,16 @@ function pageOzet(){
 
   <div class="card" style="margin-bottom:14px">
     <div class="card-header">
-      <div><div class="card-title">Planlanan vs Gerçekleşen Gider</div><div class="card-sub">Son 6 ay — USD</div></div>
-      <div style="display:flex;gap:14px;font-size:10px;color:var(--text3)">
-        <span><span style="display:inline-block;width:16px;height:2px;background:#4f8ef750;border-top:2px dashed #4f8ef7;margin-right:5px;vertical-align:middle"></span>Planlanan</span>
-        <span><span style="display:inline-block;width:16px;height:3px;background:#f87171;margin-right:5px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
+      <div><div class="card-title">Gelir & Gider — 12 Aylık Görünüm</div><div class="card-sub">Planlanan vs Gerçekleşen · ₺ bazlı · Veri girilmeyen aylar boş</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text3);align-items:center">
+        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #34d399;margin-right:4px;vertical-align:middle"></span>Plan Gelir</span>
+        <span><span style="display:inline-block;width:14px;height:3px;background:#34d399;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerç. Gelir</span>
+        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #f87171;margin-right:4px;vertical-align:middle"></span>Plan Gider</span>
+        <span><span style="display:inline-block;width:14px;height:3px;background:#f87171;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerç. Gider</span>
+        <button onclick="openPlanModal()" class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px">✎ Planı Düzenle</button>
       </div>
     </div>
-    <div class="chart-wrap" style="height:200px"><canvas id="ozBudgetLine"></canvas></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="ozBudgetLine"></canvas></div>
   </div>
 
   <div class="grid-3">
@@ -1078,10 +1101,19 @@ function pageYatirimlar(){
 
 function deleteTransaction(idx){
   const t=allTransactions[idx];
-  // Revert card limit if applicable
-  if(t.card&&t.try){
+  // Revert card limit and remove from card txns
+  if(t.card){
     const cc=getCardByLabel(t.card);
-    if(cc) cc.spentTRY=Math.max(0,cc.spentTRY-t.try);
+    if(cc){
+      if(t.try) cc.spentTRY=Math.max(0,cc.spentTRY-t.try);
+      // Remove matching txn from cc.txns by desc+date+try match
+      const tIdx=cc.txns.findIndex(x=>
+        x.date===t.date &&
+        Math.abs((x.try||0)-(t.try||0))<2 &&
+        (x.desc===t.desc || x.desc===`${t.desc} (${t.installment?.current}/${t.installment?.total})`)
+      );
+      if(tIdx>-1) cc.txns.splice(tIdx,1);
+    }
   }
   allTransactions.splice(idx,1);
   switchPage('harcamalar',null);
@@ -1272,10 +1304,20 @@ function refreshMemberDropdowns(){
 function initCharts(page){
   if(page==='ozet'){
     destroyChart('ozBudgetLine');
+    const {incByMonth,expByMonth}=getActualByMonth();
+    const planIncTRY=PLAN_INC_TRY;
+    const planExpTRY=PLAN_EXP_TRY;
+    const actIncTRY=incByMonth.map(v=>v||null);
+    const actExpTRY=expByMonth.map(v=>v||null);
     new Chart($('ozBudgetLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
-      {label:'Planlanan',data:PLAN_EXP_USD,borderColor:'#4f8ef760',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef760',borderWidth:1.5},
-      {label:'Gerçekleşen',data:ACTUAL_EXP_USD,borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+      {label:'Planlanan Gelir',data:planIncTRY,borderColor:'#34d39960',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:2,pointBackgroundColor:'#34d39960',borderWidth:1.5},
+      {label:'Gerçekleşen Gelir',data:actIncTRY,borderColor:'#34d399',backgroundColor:'rgba(52,211,153,.06)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#34d399',borderWidth:2.5,spanGaps:false},
+      {label:'Planlanan Gider',data:planExpTRY,borderColor:'#f8717160',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:2,pointBackgroundColor:'#f8717160',borderWidth:1.5},
+      {label:'Gerçekleşen Gider',data:actExpTRY,borderColor:'#f87171',backgroundColor:'rgba(248,113,113,.06)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5,spanGaps:false},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,boxHeight:2,font:{size:10},color:'#8b909e',usePointStyle:true}}},
+      scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},
+        y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'₺'+Math.round(v/1000)+'K'}}}}});
     destroyChart('ozDonut');
     new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:BUDGET_DATA.map(b=>b.actual),backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
     destroyChart('ozVarlik');
@@ -1883,10 +1925,18 @@ window.openIncomeModal=function(){
       <select class="form-input" id="inc-member">${MEMBERS.map(m=>`<option>${m.name}</option>`).join('')}</select>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Tutar (USD)</label><input class="form-input" type="number" id="inc-usd" placeholder="0.00" oninput="const r=parseFloat(document.getElementById('inc-rate').value)||FX;const u=parseFloat(this.value)||0;document.getElementById('inc-try-disp').textContent=u>0?'₺'+Math.round(u*r).toLocaleString('tr-TR'):''"></div>
-      <div class="form-group"><label class="form-label">Kur (₺/$)</label><input class="form-input" type="number" id="inc-rate" value="${FX}"></div>
+      <div class="form-group"><label class="form-label">Tutar (₺)</label>
+        <input class="form-input" type="number" id="inc-try-in" placeholder="0,00"
+          oninput="const r=parseFloat(document.getElementById('inc-rate').value)||FX;const t=parseFloat(this.value)||0;document.getElementById('inc-usd-disp').value=t>0?fmtUSD(t/r,2):'';document.getElementById('inc-usd-disp').style.color='var(--teal)'">
+      </div>
+      <div class="form-group"><label class="form-label">Kur (₺/$)</label>
+        <input class="form-input" type="number" id="inc-rate" value="${FX}"
+          oninput="const t=parseFloat(document.getElementById('inc-try-in').value)||0;const r=parseFloat(this.value)||FX;document.getElementById('inc-usd-disp').value=t>0?fmtUSD(t/r,2):''">
+      </div>
     </div>
-    <div style="font-size:12px;color:var(--green);font-family:var(--mono);margin-bottom:12px" id="inc-try-disp"></div>
+    <div class="form-group"><label class="form-label">USD Karşılığı (otomatik)</label>
+      <input class="form-input" type="text" id="inc-usd-disp" readonly style="color:var(--teal)">
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
       <button class="btn btn-primary" onclick="saveIncome()">Kaydet</button>
@@ -1896,10 +1946,16 @@ window.openIncomeModal=function(){
 };
 window.saveIncome=function(){
   const dateRaw=$('inc-date').value;
-  const monthNames=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   const d=new Date(dateRaw);
-  const label=`${d.getDate()} ${monthNames[d.getMonth()]}`;
-  INCOME_RECORDS.unshift({id:incNextId++,date:label,desc:$('inc-desc').value||'Gelir',member:$('inc-member').value,cat:$('inc-cat').value,usd:parseFloat($('inc-usd').value)||0,rate:parseFloat($('inc-rate').value)||FX});
+  const label=`${d.getDate()} ${MN[d.getMonth()]}`;
+  const tryVal=parseFloat($('inc-try-in').value)||0;
+  const rate=parseFloat($('inc-rate').value)||FX;
+  const usd=rate>0?+(tryVal/rate).toFixed(2):0;
+  if(tryVal<=0){alert('Lütfen ₺ tutarı girin.');return;}
+  INCOME_RECORDS.unshift({id:incNextId++,date:label,desc:$('inc-desc').value||'Gelir',
+    member:$('inc-member').value,cat:$('inc-cat').value,
+    usd,rate,try:Math.round(tryVal)});
   closeDynModal();switchPage('gelirler',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});
 };
 
@@ -2010,6 +2066,47 @@ window.saveAV=function(type, editId){
   document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('borclar'))n.classList.add('active');});
 };
 
+// ─── PLAN MODAL ──────────────────────────────────────────────────────────────
+window.openPlanModal=function(){
+  const rows=MONTHS_LABELS.map((m,i)=>`
+    <div style="display:grid;grid-template-columns:60px 1fr 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:500;color:var(--accent)">${m}</div>
+      <div>
+        <label class="form-label" style="margin-bottom:3px">Plan Gelir (₺)</label>
+        <input class="form-input" type="number" id="pl-inc-${i}" value="${PLAN_INC_TRY[i]}" style="padding:5px 8px;font-size:12px">
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:3px">Plan Gider (₺)</label>
+        <input class="form-input" type="number" id="pl-exp-${i}" value="${PLAN_EXP_TRY[i]}" style="padding:5px 8px;font-size:12px">
+      </div>
+    </div>`).join('');
+
+  const html=`<div class="modal" style="width:540px;max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="modal-title">Aylık Planlanan Verileri Düzenle</div>
+    <div style="background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.2);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--accent)">
+      Her ay için planlanan gelir ve gider hedeflerini girin — grafik otomatik güncellenir.
+    </div>
+    ${rows}
+    <div class="modal-footer" style="margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-primary" onclick="savePlanModal()">Kaydet</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.savePlanModal=function(){
+  MONTHS_LABELS.forEach((m,i)=>{
+    const inc=parseFloat(document.getElementById(`pl-inc-${i}`)?.value)||0;
+    const exp=parseFloat(document.getElementById(`pl-exp-${i}`)?.value)||0;
+    PLAN_INC_TRY[i]=inc;
+    PLAN_EXP_TRY[i]=exp;
+  });
+  closeDynModal();
+  switchPage('ozet',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('ozet'))n.classList.add('active');});
+};
+
 // ─── DYNAMIC MODAL HELPER ─────────────────────────────────────────────────────
 function showDynModal(html){
   let ov=$('dynModalOverlay');
@@ -2033,6 +2130,8 @@ function collectState(){
     incNextId,
     allTransactions,
     BUDGET_DATA,
+    PLAN_INC_TRY:[...PLAN_INC_TRY],
+    PLAN_EXP_TRY:[...PLAN_EXP_TRY],
     BANK_MOVEMENTS: window.BANK_MOVEMENTS||[],
     PAID_EKSTRES: [...PAID_EKSTRES],
     savedAt: new Date().toISOString(),
@@ -2052,6 +2151,8 @@ function applyState(s){
   if(s.incNextId) incNextId=s.incNextId;
   if(s.allTransactions) allTransactions.splice(0,allTransactions.length,...s.allTransactions);
   if(s.BUDGET_DATA) BUDGET_DATA.splice(0,BUDGET_DATA.length,...s.BUDGET_DATA);
+  if(s.PLAN_INC_TRY) PLAN_INC_TRY.splice(0,12,...s.PLAN_INC_TRY);
+  if(s.PLAN_EXP_TRY) PLAN_EXP_TRY.splice(0,12,...s.PLAN_EXP_TRY);
   if(s.BANK_MOVEMENTS) window.BANK_MOVEMENTS=s.BANK_MOVEMENTS;
   if(s.PAID_EKSTRES) PAID_EKSTRES=new Set(s.PAID_EKSTRES);
 }
