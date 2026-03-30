@@ -730,7 +730,10 @@ function pageKartlar(){
   return`
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
     ${CREDIT_CARDS.map((cc,i)=>{
-      const pct=Math.round(cc.spentTRY/cc.limitTRY*100);
+      // Gerçek harcama allTransactions'dan hesapla
+      const realSpent=allTransactions.filter(t=>getCardByLabel(t.card)===cc).reduce((s,t)=>s+(t.try||0),0);
+      cc.spentTRY=realSpent;
+      const pct=Math.round(realSpent/cc.limitTRY*100);
       const today=new Date();
       const cut=new Date(today.getFullYear(),today.getMonth(),cc.cutDay);
       if(cut<today)cut.setMonth(cut.getMonth()+1);
@@ -774,19 +777,26 @@ function renderCCDetail(idx){
   const cut=new Date(today.getFullYear(),today.getMonth(),cc.cutDay);
   if(cut<today)cut.setMonth(cut.getMonth()+1);
   const days=Math.ceil((cut-today)/864e5);
-  const remaining=cc.limitTRY-cc.spentTRY;
 
-  // Group transactions by billingPeriod
+  // Sadece allTransactions'dan al — cc.txns'e bakma
+  const cardTxns=allTransactions.filter(t=>getCardByLabel(t.card)===cc);
+
+  // spentTRY'yi gerçek veriden hesapla
+  const realSpent=cardTxns.reduce((s,t)=>s+(t.try||0),0);
+  cc.spentTRY=realSpent; // senkronize et
+  const remaining=cc.limitTRY-realSpent;
+  const pct=Math.round(realSpent/cc.limitTRY*100);
+
+  // Dönem dönem grupla
   const byPeriod={};
-  cc.txns.forEach(t=>{
+  cardTxns.forEach(t=>{
     const key=t.billingPeriod||'Dönem Belirtilmemiş';
     if(!byPeriod[key]) byPeriod[key]=[];
     byPeriod[key].push(t);
   });
 
-  // Sort periods chronologically
   const periodOrder=Object.keys(byPeriod).sort((a,b)=>{
-    const parseP=s=>{const p=s.split(' ');return(parseInt(p[1])||0)*12+(MN_TR.indexOf(p[0]));}; 
+    const parseP=s=>{const p=s.split(' ');return(parseInt(p[1])||0)*12+(MN_TR.indexOf(p[0]));};
     return parseP(a)-parseP(b);
   });
 
@@ -794,8 +804,7 @@ function renderCCDetail(idx){
     ? `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Bu karta ait işlem yok</td></tr>`
     : periodOrder.map(period=>{
         const txns=byPeriod[period];
-        const totalUSD=txns.reduce((s,t)=>s+t.usd,0);
-        const totalTRY=txns.reduce((s,t)=>s+t.try,0);
+        const totalTRY=txns.reduce((s,t)=>s+(t.try||0),0);
         return`
           <tr style="background:var(--bg3)">
             <td colspan="5" style="font-size:11px;font-weight:600;color:var(--accent);padding:8px 12px;letter-spacing:.04em">
@@ -803,18 +812,23 @@ function renderCCDetail(idx){
             </td>
             <td style="font-size:11px;font-family:var(--mono);color:var(--amber);padding:8px 12px;text-align:right">${fmtTRY(totalTRY)}</td>
             <td style="padding:8px 12px;text-align:right">
-              <button onclick="editBillingPeriod(${idx},'${period}')" style="background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text3);font-size:10px;padding:2px 6px;cursor:pointer;font-family:var(--font)">✎ Düzenle</button>
+              <button onclick="editBillingPeriod(${idx},'${period}')" style="background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text3);font-size:10px;padding:2px 6px;cursor:pointer;font-family:var(--font)">✎ Dönem</button>
             </td>
           </tr>
-          ${txns.map(t=>`<tr>
-            <td style="color:var(--text3);font-family:var(--mono);padding-left:20px">${t.date}</td>
-            <td style="font-weight:500">${t.desc}</td>
-            <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
-            <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
-            <td style="font-family:var(--mono)">${fmtUSD(t.usd,2)}</td>
-            <td><span class="fx-badge">₺${t.rate||FX}</span></td>
-            <td style="font-family:var(--mono);font-weight:500">${fmtTRY(t.try)}</td>
-          </tr>`).join('')}`;
+          ${txns.map((t,ti)=>{
+            const tIdx=allTransactions.indexOf(t);
+            return`<tr>
+              <td style="color:var(--text3);font-family:var(--mono);padding-left:20px">${t.date}</td>
+              <td style="font-weight:500">${t.desc}${t.installment?` <span style="font-size:9px;background:#22d3ee18;color:var(--teal);padding:1px 5px;border-radius:3px">${t.installment.current}/${t.installment.total}</span>`:''}</td>
+              <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
+              <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
+              <td style="font-family:var(--mono)">${fmtUSD(t.usd,2)}</td>
+              <td style="font-family:var(--mono);font-weight:500">${fmtTRY(t.try||0)}</td>
+              <td style="text-align:right">
+                <button onclick="deleteTransaction(${tIdx});const el=$('ccDetail');if(el)el.innerHTML=renderCCDetail(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button>
+              </td>
+            </tr>`;
+          }).join('')}`;
       }).join('');
 
   return`<div class="card">
@@ -828,12 +842,27 @@ function renderCCDetail(idx){
         <button class="btn btn-ghost btn-sm" onclick="openCardSettingsModal(${idx})" style="color:var(--amber);border-color:var(--amber)33">⚙</button>
       </div>
     </div>
+    <div style="display:flex;gap:16px;margin-bottom:12px">
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 14px;font-size:11px">
+        <div style="color:var(--text3);margin-bottom:2px">Toplam Harcama</div>
+        <div style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--red)">${fmtTRY(realSpent)}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 14px;font-size:11px">
+        <div style="color:var(--text3);margin-bottom:2px">Limit Kullanım</div>
+        <div style="font-family:var(--mono);font-weight:600;font-size:15px">%${pct}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 14px;font-size:11px">
+        <div style="color:var(--text3);margin-bottom:2px">${cardTxns.length} İşlem</div>
+        <div style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--text2)">${Object.keys(byPeriod).length} Dönem</div>
+      </div>
+    </div>
     <table class="data-table">
-      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>USD</th><th>Kur / ₺</th><th style="width:80px"></th></tr></thead>
+      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>USD</th><th>₺ Tutarı</th><th style="width:40px"></th></tr></thead>
       <tbody>${periodHTML}</tbody>
     </table>
   </div>`;
 }
+
 window.selectCard=function(i){const el=$('ccDetail');if(el)el.innerHTML=renderCCDetail(i);};
 
 // Bir ekstre döneminin tüm işlemlerini başka döneme taşı
@@ -1113,20 +1142,7 @@ function pageYatirimlar(){
 
 function deleteTransaction(idx){
   const t=allTransactions[idx];
-  // Revert card limit and remove from card txns
-  if(t.card){
-    const cc=getCardByLabel(t.card);
-    if(cc){
-      if(t.try) cc.spentTRY=Math.max(0,cc.spentTRY-t.try);
-      // Remove matching txn from cc.txns by desc+date+try match
-      const tIdx=cc.txns.findIndex(x=>
-        x.date===t.date &&
-        Math.abs((x.try||0)-(t.try||0))<2 &&
-        (x.desc===t.desc || x.desc===`${t.desc} (${t.installment?.current}/${t.installment?.total})`)
-      );
-      if(tIdx>-1) cc.txns.splice(tIdx,1);
-    }
-  }
+  if(!t) return;
   allTransactions.splice(idx,1);
   switchPage('harcamalar',null);
   document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('harcamalar'))n.classList.add('active');});
@@ -1929,7 +1945,7 @@ window.addTransaction=function(){
     const t={...baseT,date:dateDisplay,usd,try:Math.round(tryVal),
       installment:null,billingPeriod:firstPeriod?`${MN_TR[firstPeriod.month]} ${firstPeriod.year}`:null};
     allTransactions.unshift(t);
-    if(cc){cc.spentTRY+=Math.round(tryVal);cc.txns.unshift({date:dateDisplay,desc:baseT.desc,cat:baseT.cat,member:baseT.member,usd,rate,try:Math.round(tryVal),billingPeriod:t.billingPeriod});}
+    if(cc){cc.spentTRY+=Math.round(tryVal);}
   } else {
     const perTRY=Math.round(tryVal/inst);
     const perUSD=+(usd/inst).toFixed(2);
@@ -1945,7 +1961,7 @@ window.addTransaction=function(){
       const t={...baseT,date:instDateDisplay,usd:perUSD,try:perTRY,
         installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},billingPeriod};
       allTransactions.push(t);
-      if(cc){cc.spentTRY+=perTRY;cc.txns.push({date:instDateDisplay,desc:`${baseT.desc} (${i+1}/${inst})`,cat:baseT.cat,member:baseT.member,usd:perUSD,rate,try:perTRY,billingPeriod});}
+      if(cc){cc.spentTRY+=perTRY;}
     }
     allTransactions.sort((a,b)=>new Date('2026 '+b.date)-new Date('2026 '+a.date));
   }
