@@ -1914,7 +1914,6 @@ window.openAVModal=function(type, editId){
   const color = type==='alacak' ? 'var(--green)' : 'var(--red)';
   const btnBg = type==='alacak' ? '#059669' : '#dc2626';
 
-  // Convert stored date label back to ISO for date input
   const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   let dateVal = new Date().toISOString().slice(0,10);
   if(existing?.date){
@@ -1925,6 +1924,10 @@ window.openAVModal=function(type, editId){
       dateVal = `2026-${mon}-${day}`;
     }
   }
+
+  // Mevcut TL tutarı: try alanı varsa onu kullan, yoksa usd*rate
+  const existingTRY = existing ? (existing.try || Math.round((existing.usd||0)*(existing.rate||FX))) : '';
+  const existingUSD = existingTRY ? fmtUSD(existingTRY/FX, 2) : '';
 
   const html=`<div class="modal" onclick="event.stopPropagation()">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
@@ -1947,17 +1950,20 @@ window.openAVModal=function(type, editId){
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Tutar (USD)</label>
-        <input class="form-input" type="number" id="av-usd" value="${existing?.usd||''}" placeholder="0.00"
-          oninput="const r=parseFloat(document.getElementById('av-rate').value)||FX;const u=parseFloat(this.value)||0;document.getElementById('av-try-disp').textContent=u>0?'≈ '+fmtTRY(u*r):''">
+        <label class="form-label">Tutar (₺)</label>
+        <input class="form-input" type="number" id="av-try-in" value="${existingTRY}" placeholder="0,00"
+          oninput="const r=parseFloat(document.getElementById('av-rate').value)||FX;const t=parseFloat(this.value)||0;document.getElementById('av-usd-disp').value=t>0?fmtUSD(t/r,2):'';document.getElementById('av-usd-disp').style.color='var(--teal)'">
       </div>
       <div class="form-group">
         <label class="form-label">Kur (₺/$)</label>
         <input class="form-input" type="number" id="av-rate" value="${existing?.rate||FX}"
-          oninput="const u=parseFloat(document.getElementById('av-usd').value)||0;const r=parseFloat(this.value)||FX;document.getElementById('av-try-disp').textContent=u>0?'≈ '+fmtTRY(u*r):''">
+          oninput="const t=parseFloat(document.getElementById('av-try-in').value)||0;const r=parseFloat(this.value)||FX;document.getElementById('av-usd-disp').value=t>0?fmtUSD(t/r,2):''">
       </div>
     </div>
-    <div style="font-size:12px;color:var(--amber);font-family:var(--mono);margin-bottom:12px;min-height:18px" id="av-try-disp">${existing?.usd ? '≈ '+fmtTRY(existing.usd*existing.rate) : ''}</div>
+    <div class="form-group">
+      <label class="form-label">USD Karşılığı (otomatik)</label>
+      <input class="form-input" type="text" id="av-usd-disp" value="${existingUSD}" readonly style="color:var(--teal)">
+    </div>
     ${isEdit ? `
     <div class="form-group">
       <label class="form-label">Durum</label>
@@ -1984,21 +1990,22 @@ window.saveAV=function(type, editId){
   const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
   const d=new Date(dateRaw);
   const dateLabel=`${d.getDate()} ${MN[d.getMonth()]}`;
-  const usd=parseFloat($('av-usd').value)||0;
+  const tryVal=parseFloat($('av-try-in').value)||0;
   const rate=parseFloat($('av-rate').value)||FX;
+  const usd=rate>0?+(tryVal/rate).toFixed(2):0;
   const person=$('av-person').value||'?';
   const desc=$('av-desc').value||'';
   const status=$('av-status')?.value||'bekliyor';
 
+  if(tryVal<=0){alert('Lütfen ₺ tutarı girin.');return;}
+
   if(editId!=null){
-    // Update existing record
     const idx=ALACAK_VERECEK.findIndex(a=>a.id===editId);
     if(idx>-1){
-      ALACAK_VERECEK[idx]={...ALACAK_VERECEK[idx], person, desc, usd, rate, date:dateLabel, status};
+      ALACAK_VERECEK[idx]={...ALACAK_VERECEK[idx],person,desc,usd,rate,try:Math.round(tryVal),date:dateLabel,status};
     }
   } else {
-    // New record
-    ALACAK_VERECEK.push({id:avNextId++, type, person, desc, usd, rate, date:dateLabel, status:'bekliyor'});
+    ALACAK_VERECEK.push({id:avNextId++,type,person,desc,usd,rate,try:Math.round(tryVal),date:dateLabel,status:'bekliyor'});
   }
   closeDynModal();
   switchPage('borclar',null);
