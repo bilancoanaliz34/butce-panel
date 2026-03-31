@@ -1021,8 +1021,8 @@ function pageBankalar(){
         <div class="m-label" style="margin-bottom:0">${b.name}</div>
         <button onclick="openBankModal(${i})" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:0" title="Düzenle">✎</button>
       </div>
-      <div class="m-value" style="font-size:17px">${fmtTRY(b.balanceTRY)}</div>
-      <div class="m-sub">${fmtUSD(b.balanceTRY/FX,0)} · ${b.type}</div>
+      <div class="m-value" style="font-size:17px;color:${b.balanceTRY<0?'var(--red)':'inherit'}">${fmtTRY(b.balanceTRY)}</div>
+      <div class="m-sub">${fmtUSD(b.balanceTRY/FX,0)} · ${b.type}${b.balanceTRY<0?' · <span style="color:var(--red)">⚠ Negatif bakiye</span>':''}</div>
       <div style="display:flex;gap:6px;margin-top:10px">
         <button onclick="openMoneyMoveModal(${i},'ekle')" style="flex:1;background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);border-radius:7px;color:var(--green);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">+ Para Ekle</button>
         <button onclick="openMoneyMoveModal(${i},'cıkar')" style="flex:1;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);border-radius:7px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">− Çıkar</button>
@@ -1042,7 +1042,7 @@ function pageBankalar(){
           <div class="bank-logo" style="background:${b.color}22;color:${b.color}">${b.logo}</div>
           <div class="bank-info"><div class="bank-name">${b.name}</div><div class="bank-type">${b.type}</div></div>
           <div style="text-align:right">
-            <div style="font-family:var(--mono);font-size:13px;font-weight:500">${fmtTRY(b.balanceTRY)}</div>
+            <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:${b.balanceTRY<0?'var(--red)':'inherit'}">${fmtTRY(b.balanceTRY)}</div>
             <div style="font-size:10px;color:var(--text3)">${fmtUSD(b.balanceTRY/FX,0)} · %${Math.round(b.balanceTRY/total*100)}</div>
           </div>
         </div>`).join('')}
@@ -2053,7 +2053,7 @@ window.addTransaction=function(){
       bankName:bank?bank.name:null};
     allTransactions.unshift(t);
     if(cc) cc.spentTRY+=Math.round(tryVal);
-    if(bank) bank.balanceTRY=Math.max(0,bank.balanceTRY-Math.round(tryVal));
+    if(bank) bank.balanceTRY=bank.balanceTRY-Math.round(tryVal);
   } else {
     const perTRY=Math.round(tryVal/inst);
     const perUSD=+(usd/inst).toFixed(2);
@@ -2071,7 +2071,7 @@ window.addTransaction=function(){
         bankName:bank?bank.name:null};
       allTransactions.push(t);
       if(cc) cc.spentTRY+=perTRY;
-      if(bank) bank.balanceTRY=Math.max(0,bank.balanceTRY-perTRY);
+      if(bank) bank.balanceTRY=bank.balanceTRY-perTRY;
     }
     allTransactions.sort((a,b)=>new Date('2026 '+b.date)-new Date('2026 '+a.date));
   }
