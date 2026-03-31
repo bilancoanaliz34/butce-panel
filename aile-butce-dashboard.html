@@ -1166,6 +1166,11 @@ function pageYatirimlar(){
 function deleteTransaction(idx){
   const t=allTransactions[idx];
   if(!t) return;
+  // Banka hesabından harcandıysa bakiyeyi geri ekle
+  if(t.bankName){
+    const b=BANKS.find(b=>b.name===t.bankName);
+    if(b) b.balanceTRY+=(t.try||0);
+  }
   allTransactions.splice(idx,1);
   switchPage('harcamalar',null);
   document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('harcamalar'))n.classList.add('active');});
@@ -1188,7 +1193,7 @@ function pageHarcamalar(){
         <td style="font-size:11px;color:var(--text3);font-family:var(--mono)">${t.qty?t.qty+(t.unit?' '+t.unit:''):'—'}</td>
         <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
         <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
-        <td style="font-size:11px;color:var(--text3)">${t.card}</td>
+        <td style="font-size:11px;color:var(--text3)">${t.bankName?'🏦 '+t.bankName:t.card?.startsWith('kart:')?'💳 '+t.card.slice(5):t.card||'—'}</td>
         <td style="font-family:var(--mono);font-weight:500">${fmtUSD(t.usd,2)}</td>
         <td><span class="fx-badge">₺${t.rate}</span></td>
         <td style="font-family:var(--mono)">${fmtTRY(t.try)}</td>
@@ -1920,20 +1925,16 @@ window.updateInstallmentPreview=function(){
 };
 
 window.openModal=()=>{
-  // Dinamik dropdownları doldur
   const mem=$('f-member');
   if(mem) mem.innerHTML=MEMBERS.map(m=>`<option>${m.name}</option>`).join('');
   const meth=$('f-method');
-  if(meth) meth.innerHTML=`<option value="Nakit">Nakit</option>${CREDIT_CARDS.map(cc=>`<option value="${cc.label}">${cc.bank} ${cc.label}</option>`).join('')}`;
-  // Kuru ayarla
-  const rateEl=$('f-rate');
-  if(rateEl) rateEl.value=FX;
-  // Tarihi bugüne ayarla
-  const dateEl=$('f-date');
-  if(dateEl) dateEl.value=new Date().toISOString().slice(0,10);
-  // Sıfırla
-  const fields=['f-try-in','f-usd-disp','f-inst-amt','f-desc','f-brand','f-qty'];
-  fields.forEach(id=>{const el=$(id);if(el)el.value='';});
+  if(meth) meth.innerHTML=
+    `<option value="Nakit">💵 Nakit</option>`+
+    BANKS.map(b=>`<option value="banka:${b.name}">🏦 ${b.name} (${fmtTRY(b.balanceTRY)})</option>`).join('')+
+    CREDIT_CARDS.map(cc=>`<option value="kart:${cc.label}">💳 ${cc.bank} ${cc.label}</option>`).join('');
+  const rateEl=$('f-rate'); if(rateEl) rateEl.value=FX;
+  const dateEl=$('f-date'); if(dateEl) dateEl.value=new Date().toISOString().slice(0,10);
+  ['f-try-in','f-usd-disp','f-inst-amt','f-desc','f-brand','f-qty'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const instEl=$('f-inst');if(instEl)instEl.value='1';
   const instInfo=$('f-inst-info');if(instInfo)instInfo.style.display='none';
   updateCardInfo();
@@ -1943,18 +1944,37 @@ window.openModal=()=>{
 window.closeModal=()=>$('modal').classList.remove('open');
 
 function getCardByLabel(label){
-  return CREDIT_CARDS.find(c=>c.label===label||c.bank+' '+c.label===label||label.includes(c.label));
+  // "kart:Label" formatını da destekle
+  const l=label?.startsWith('kart:')?label.slice(5):label;
+  return CREDIT_CARDS.find(c=>c.label===l||c.bank+' '+c.label===l||l?.includes(c.label));
+}
+function getBankByLabel(label){
+  // "banka:Name" formatından banka bul
+  if(!label?.startsWith('banka:')) return null;
+  const name=label.slice(6);
+  return BANKS.find(b=>b.name===name);
 }
 
 window.updateCardInfo=function(){
   const method=$('f-method')?.value;
   const cc=getCardByLabel(method);
+  const bank=getBankByLabel(method);
   const info=$('f-card-info');
   if(!info) return;
   if(cc){
-    const avail=cc.limitTRY-cc.spentTRY;
+    const realSpent=allTransactions.filter(t=>getCardByLabel(t.card)===cc).reduce((s,t)=>s+(t.try||0),0);
+    const avail=cc.limitTRY-realSpent;
     info.style.display='block';
-    info.innerHTML=`<strong>${cc.bank} ${cc.label}</strong> — Kalan: <strong>${fmtTRY(avail)}</strong> · Kesim: her ayın <strong>${cc.cutDay}.</strong> günü`;
+    info.style.background='rgba(79,142,247,.08)';
+    info.style.borderColor='rgba(79,142,247,.2)';
+    info.style.color='var(--accent)';
+    info.innerHTML=`💳 <strong>${cc.bank} ${cc.label}</strong> — Kalan limit: <strong>${fmtTRY(avail)}</strong> · Kesim: her ayın <strong>${cc.cutDay}.</strong> günü`;
+  } else if(bank){
+    info.style.display='block';
+    info.style.background='rgba(52,211,153,.08)';
+    info.style.borderColor='rgba(52,211,153,.2)';
+    info.style.color='var(--green)';
+    info.innerHTML=`🏦 <strong>${bank.name}</strong> — Mevcut bakiye: <strong>${fmtTRY(bank.balanceTRY)}</strong> · Harcama bakiyeden düşülecek`;
   } else {
     info.style.display='none';
   }
@@ -2015,6 +2035,7 @@ window.addTransaction=function(){
   };
 
   const cc=getCardByLabel(method);
+  const bank=getBankByLabel(method);
   const selPeriodIdx=parseInt($('f-period')?.value)||0;
   const periods=cc?getBillingPeriods(cc,dateRaw,24):null;
   const firstPeriod=periods?periods[selPeriodIdx]:null;
@@ -2028,9 +2049,11 @@ window.addTransaction=function(){
       dateDisplay=`${d.getDate()} ${MN_TR[d.getMonth()]}`;
     }
     const t={...baseT,date:dateDisplay,usd,try:Math.round(tryVal),
-      installment:null,billingPeriod:firstPeriod?`${MN_TR[firstPeriod.month]} ${firstPeriod.year}`:null};
+      installment:null,billingPeriod:firstPeriod?`${MN_TR[firstPeriod.month]} ${firstPeriod.year}`:null,
+      bankName:bank?bank.name:null};
     allTransactions.unshift(t);
-    if(cc){cc.spentTRY+=Math.round(tryVal);}
+    if(cc) cc.spentTRY+=Math.round(tryVal);
+    if(bank) bank.balanceTRY=Math.max(0,bank.balanceTRY-Math.round(tryVal));
   } else {
     const perTRY=Math.round(tryVal/inst);
     const perUSD=+(usd/inst).toFixed(2);
@@ -2044,9 +2067,11 @@ window.addTransaction=function(){
       const instDateDisplay=`${cutDay} ${MN_TR[mo]}`;
       const billingPeriod=`${MN_TR[mo]} ${yr}`;
       const t={...baseT,date:instDateDisplay,usd:perUSD,try:perTRY,
-        installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},billingPeriod};
+        installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},billingPeriod,
+        bankName:bank?bank.name:null};
       allTransactions.push(t);
-      if(cc){cc.spentTRY+=perTRY;}
+      if(cc) cc.spentTRY+=perTRY;
+      if(bank) bank.balanceTRY=Math.max(0,bank.balanceTRY-perTRY);
     }
     allTransactions.sort((a,b)=>new Date('2026 '+b.date)-new Date('2026 '+a.date));
   }
