@@ -617,7 +617,7 @@ function pageOzet(){
         <div class="card-sub">Nakit + Yatırım + Gelirler + Planlanan Gelir + Alacaklar − Giderler − Planlanan Gider − Verecekler</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text3)">
-        <span><span style="display:inline-block;width:14px;height:3px;background:var(--teal);margin-right:4px;vertical-align:middle;border-radius:2px"></span>Net Varlık</span>
+        <span><span style="display:inline-block;width:14px;height:3px;background:#3b82f6;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Net Varlık</span>
         <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed var(--text3);margin-right:4px;vertical-align:middle"></span>Başlangıç</span>
       </div>
     </div>
@@ -1595,12 +1595,12 @@ function initCharts(page){
         labels:MONTHS_LABELS,
         datasets:[
           {label:'Net Varlık',data:cumData,
-           borderColor:'var(--teal)',backgroundColor:'rgba(34,211,238,.08)',
-           fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'var(--teal)',
-           borderWidth:2.5,pointHoverRadius:6},
+           borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',
+           fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#3b82f6',
+           borderWidth:3,pointHoverRadius:6},
           {label:'Başlangıç',data:zero,
-           borderColor:'rgba(139,144,158,.3)',borderDash:[4,4],
-           backgroundColor:'transparent',pointRadius:0,borderWidth:1,tension:0},
+           borderColor:'rgba(139,144,158,.35)',borderDash:[4,4],
+           backgroundColor:'transparent',pointRadius:0,borderWidth:1.5,tension:0},
         ]
       },options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{
