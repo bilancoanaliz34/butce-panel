@@ -611,7 +611,18 @@ function pageOzet(){
     <div class="chart-wrap" style="height:220px"><canvas id="ozBudgetLine"></canvas></div>
   </div>
 
-  <div class="grid-3">
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Net Varlık Pozisyonu — 12 Aylık</div>
+        <div class="card-sub">Nakit + Yatırım + Gelirler + Planlanan Gelir + Alacaklar − Giderler − Planlanan Gider − Verecekler</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text3)">
+        <span><span style="display:inline-block;width:14px;height:3px;background:var(--teal);margin-right:4px;vertical-align:middle;border-radius:2px"></span>Net Varlık</span>
+        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed var(--text3);margin-right:4px;vertical-align:middle"></span>Başlangıç</span>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:200px"><canvas id="ozNetVarlik"></canvas></div>
+  </div>
     <div class="card">
       <div class="card-header"><div class="card-title">Aile Harcamaları</div></div>
       ${MEMBERS.map(m=>{
@@ -1556,7 +1567,58 @@ function initCharts(page){
         y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'₺'+Math.round(v/1000)+'K'}}}}});
     destroyChart('ozDonut');
     new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:BUDGET_DATA.map(b=>b.actual),backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
-    destroyChart('ozVarlik');
+    // ── Net Varlık Pozisyonu ─────────────────────────────────────────────────
+    destroyChart('ozNetVarlik');
+    {
+      const {incByMonth,expByMonth,alacakByMonth,verecekByMonth}=getActualByMonth();
+      const baseWealth=totalBankTRY()+totalInvTRY(); // anlık nakit+yatırım
+
+      // Her ay için net değişim:
+      // + gerçekleşen gelir + planlanan gelir + alacaklar
+      // − gerçekleşen gider − planlanan gider − verecekler
+      const netByMonth=MONTHS_LABELS.map((_,i)=>{
+        const gercGelir=incByMonth[i]||0;
+        const gercGider=expByMonth[i]||0;
+        const planGelir=PLAN_INC_TRY[i]||0;
+        const planGider=PLAN_EXP_TRY[i]||0;
+        const alacak=alacakByMonth[i]||0;
+        const verecek=verecekByMonth[i]||0;
+        return gercGelir+planGelir+alacak-gercGider-planGider-verecek;
+      });
+
+      // Kümülatif — başlangıç varlığından itibaren
+      let cum=baseWealth;
+      const cumData=netByMonth.map(v=>{ cum+=v; return cum; });
+      const zero=new Array(12).fill(baseWealth);
+
+      new Chart($('ozNetVarlik'),{type:'line',data:{
+        labels:MONTHS_LABELS,
+        datasets:[
+          {label:'Net Varlık',data:cumData,
+           borderColor:'var(--teal)',backgroundColor:'rgba(34,211,238,.08)',
+           fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'var(--teal)',
+           borderWidth:2.5,pointHoverRadius:6},
+          {label:'Başlangıç',data:zero,
+           borderColor:'rgba(139,144,158,.3)',borderDash:[4,4],
+           backgroundColor:'transparent',pointRadius:0,borderWidth:1,tension:0},
+        ]
+      },options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          label:ctx=>`${ctx.dataset.label}: ${fmtTRY(ctx.raw)}`
+        }}},
+        scales:{
+          x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},
+          y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',
+            callback:v=>{
+              const abs=Math.abs(v);
+              if(abs>=1000000) return (v/1000000).toFixed(1)+'M₺';
+              if(abs>=1000) return Math.round(v/1000)+'K₺';
+              return v+'₺';
+            }
+          }}
+        }
+      }});
+    }
     const bankV=totalBankTRY(),invV=totalInvTRY();
     new Chart($('ozVarlik'),{type:'doughnut',data:{labels:['Banka','Yatırım'],datasets:[{data:[bankV,invV],backgroundColor:['#22d3ee99','#7c5af599'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
   }
