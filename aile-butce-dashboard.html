@@ -197,6 +197,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Borç / Alacak
     </div>
+    <div class="nav-item" onclick="switchPage('analiz',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="3" r="2" fill="currentColor" opacity=".6"/></svg>
+      Akıllı Analiz
+    </div>
     <div class="nav-item" onclick="switchPage('kisiler',this)">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M1 14c0-3 2-5 5-5s5 2 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="5" r="2" stroke="currentColor" stroke-width="1.2" opacity=".5"/></svg>
       Aile Üyeleri
@@ -959,9 +963,7 @@ window.openCardSettingsModal=function(idx){
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Hesap Kesim Günü</label>
-        <select class="form-input" id="cc-cutday">
-          ${[1,5,8,10,12,14,15,18,20,22,25,28].map(d=>`<option value="${d}" ${cc&&cc.cutDay===d?'selected':''}>${d}. gün</option>`).join('')}
-        </select>
+        <input class="form-input" type="number" id="cc-cutday" min="1" max="31" value="${cc?cc.cutDay:15}" placeholder="15">
       </div>
       <div class="form-group"><label class="form-label">Son Ödeme (kesim + kaç gün)</label>
         <input class="form-input" type="number" id="cc-payoffset" min="1" max="30" value="${cc&&cc.payOffset?cc.payOffset:10}" placeholder="10">
@@ -1858,9 +1860,158 @@ window.markEkstreOdendi=function(eid){
 };
 
 
+// ─── AKILLI ANALİZ PAGE ──────────────────────────────────────────────────────
+function pageAnaliz(){
+  const today = new Date();
+
+  // ── Hangi kart ile harcamalıyım? ─────────────────────────────────────────
+  const cardAdvice = CREDIT_CARDS.map(cc=>{
+    const cut = new Date(today.getFullYear(), today.getMonth(), cc.cutDay);
+    if(cut <= today) cut.setMonth(cut.getMonth()+1);
+    const daysTocut = Math.ceil((cut - today) / 864e5);
+    const payDate = new Date(cut); payDate.setDate(payDate.getDate() + (cc.payOffset||10));
+    const daysTopay = Math.ceil((payDate - today) / 864e5);
+    const realSpent = allTransactions.filter(t=>getCardByLabel(t.card)===cc).reduce((s,t)=>s+(t.try||0),0);
+    const avail = cc.limitTRY - realSpent;
+    const availPct = Math.round(avail/cc.limitTRY*100);
+    // Skor: daha fazla gün kalsın + daha fazla limit kalsın = daha iyi
+    const score = daysTocut * 0.6 + availPct * 0.4;
+    return {cc, daysTocut, daysTopay, payDate, realSpent, avail, availPct, score};
+  }).sort((a,b)=>b.score-a.score);
+
+  const bestCard = cardAdvice[0];
+
+  const cardRows = cardAdvice.map((c,i)=>{
+    const rank = ['🥇','🥈','🥉'][i]||`${i+1}.`;
+    const barW = Math.min(100,c.availPct);
+    const barColor = c.availPct>50?'var(--green)':c.availPct>20?'var(--amber)':'var(--red)';
+    const cutStr = `${c.cut?.getDate?c.cc.cutDay:c.cc.cutDay}. gün`;
+    return`<tr style="${i===0?'background:rgba(52,211,153,.06)':''}">
+      <td style="font-size:15px;text-align:center">${rank}</td>
+      <td>
+        <div style="font-weight:600">${c.cc.bank} <span style="color:var(--accent)">${c.cc.label}</span></div>
+        <div style="font-size:10px;color:var(--text3)">${c.cc.owner}</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-family:var(--mono);font-weight:600;font-size:15px;color:${c.daysTocut<=3?'var(--red)':c.daysTocut<=7?'var(--amber)':'var(--green)'}">${c.daysTocut}</div>
+        <div style="font-size:9px;color:var(--text3)">kesime gün</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-family:var(--mono);font-weight:600;font-size:15px">${c.daysTopay}</div>
+        <div style="font-size:9px;color:var(--text3)">ödemeye gün</div>
+      </td>
+      <td>
+        <div style="font-family:var(--mono);font-weight:600;color:${barColor}">${fmtTRY(c.avail)}</div>
+        <div style="height:4px;background:var(--bg3);border-radius:2px;margin-top:4px;overflow:hidden">
+          <div style="height:100%;width:${barW}%;background:${barColor};border-radius:2px"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">%${c.availPct} boş</div>
+      </td>
+      <td style="text-align:center">
+        <div style="font-family:var(--mono);font-size:12px;font-weight:500">${Math.round(c.score)}</div>
+        <div style="font-size:9px;color:var(--text3)">puan</div>
+      </td>
+      <td style="font-size:11px;color:var(--text3)">${c.cc.cutDay}. kesim · +${c.cc.payOffset||10} gün ödeme</td>
+    </tr>`;
+  }).join('');
+
+  // ── Ürün analizi ──────────────────────────────────────────────────────────
+  const productMap = {};
+  allTransactions.forEach(t=>{
+    if(!t.brand||!t.qty||t.qty<=0) return;
+    const key = t.brand.trim().toLowerCase();
+    const usdPerUnit = t.usd / t.qty;
+    if(!productMap[key]) productMap[key]={brand:t.brand.trim(),qty:0,totalUSD:0,prices:[],cat:t.cat,count:0};
+    productMap[key].qty += t.qty;
+    productMap[key].totalUSD += t.usd;
+    productMap[key].prices.push(usdPerUnit);
+    productMap[key].count++;
+  });
+
+  const products = Object.values(productMap)
+    .filter(p=>p.count>=1)
+    .sort((a,b)=>b.qty-a.qty);
+
+  const productRows = products.length===0
+    ? `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">
+        Henüz ürün/marka + miktar girili harcama yok.<br>
+        <span style="font-size:11px">Harcama eklerken <strong>Ürün/Marka</strong> ve <strong>Miktar</strong> alanlarını doldurun.</span>
+       </td></tr>`
+    : products.map(p=>{
+        const min = Math.min(...p.prices);
+        const max = Math.max(...p.prices);
+        const avg = p.totalUSD / p.qty;
+        const variance = max-min > 0;
+        return`<tr>
+          <td>
+            <div style="font-weight:600">${p.brand}</div>
+            <div style="font-size:10px;color:var(--text3)">${p.cat}</div>
+          </td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:center">${p.qty.toLocaleString('tr-TR')}</td>
+          <td style="font-family:var(--mono);text-align:center;color:var(--text3)">${p.count} işlem</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--green)">${fmtUSD(min,3)}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--red)">${fmtUSD(max,3)}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${fmtUSD(avg,3)}</td>
+          <td style="text-align:center">
+            ${variance
+              ? `<span style="font-size:10px;background:rgba(251,191,36,.15);color:var(--amber);padding:2px 7px;border-radius:4px">%${Math.round((max-min)/avg*100)} fark</span>`
+              : `<span style="font-size:10px;color:var(--text3)">sabit fiyat</span>`}
+          </td>
+        </tr>`;
+      }).join('');
+
+  return`
+  <!-- Kart Öneri -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div>
+        <div class="card-title">💳 Hangi Kartla Harcamalıyım?</div>
+        <div class="card-sub">Hesap kesim tarihine uzaklık + kalan limit bazlı puan sıralaması</div>
+      </div>
+      ${bestCard?`<div style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);border-radius:10px;padding:8px 16px;text-align:center">
+        <div style="font-size:10px;color:var(--text3)">Önerilen</div>
+        <div style="font-size:15px;font-weight:700;color:var(--green)">${bestCard.cc.bank} ${bestCard.cc.label}</div>
+        <div style="font-size:10px;color:var(--text3)">${bestCard.daysTocut} gün kesime · ${fmtTRY(bestCard.avail)} limit</div>
+      </div>`:''}
+    </div>
+    <div style="background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.15);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--text2)">
+      <strong>Puan formülü:</strong> Hesap kesimine kaç gün kaldığı (%60) + Kalan limit yüzdesi (%40).
+      Kesime çok yakın kartla harcama yaparsanız borç çok kısa sürede ödenmek zorunda kalır.
+      Kesime uzak kart = daha fazla vadeli ödeme imkanı.
+    </div>
+    <table class="data-table">
+      <thead><tr><th style="width:40px"></th><th>Kart</th><th style="text-align:center">Kesime</th><th style="text-align:center">Ödemeye</th><th>Kalan Limit</th><th style="text-align:center">Puan</th><th>Kesim / Ödeme</th></tr></thead>
+      <tbody>${cardRows}${CREDIT_CARDS.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Kredi kartı yok</td></tr>':''}</tbody>
+    </table>
+  </div>
+
+  <!-- Ürün Analizi -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">🛒 Ürün & Fiyat Analizi</div>
+        <div class="card-sub">Miktar ve marka girili harcamalardan hesaplanır · Birim fiyatlar USD</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-align:right">${products.length} ürün · ${allTransactions.filter(t=>t.brand&&t.qty>0).length} işlem</div>
+    </div>
+    <table class="data-table">
+      <thead><tr>
+        <th>Ürün / Marka</th>
+        <th style="text-align:center">Toplam Miktar</th>
+        <th style="text-align:center">İşlem</th>
+        <th style="text-align:right">En Ucuz</th>
+        <th style="text-align:right">En Pahalı</th>
+        <th style="text-align:right">Ortalama</th>
+        <th style="text-align:center">Fiyat Sapması</th>
+      </tr></thead>
+      <tbody>${productRows}</tbody>
+    </table>
+  </div>`;
+}
+
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const PAGE_TITLES={ozet:'Genel Özet',planlanan:'Planlanan Bütçe',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',kisiler:'Aile Üyeleri'};
-const PAGE_FNS={ozet:pageOzet,planlanan:pagePlanlanan,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,kisiler:pageKisiler};
+const PAGE_TITLES={ozet:'Genel Özet',planlanan:'Planlanan Bütçe',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',analiz:'Akıllı Analiz',kisiler:'Aile Üyeleri'};
+const PAGE_FNS={ozet:pageOzet,planlanan:pagePlanlanan,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,analiz:pageAnaliz,kisiler:pageKisiler};
 let currentPage='ozet';
 
 function switchPage(name,el){
