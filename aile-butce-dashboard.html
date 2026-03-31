@@ -1688,15 +1688,15 @@ function initCharts(page){
 
 // ─── GELIRLER PAGE ───────────────────────────────────────────────────────────
 function pageGelirler(){
-  const totalUSD=INCOME_RECORDS.reduce((s,r)=>s+r.usd,0);
-  const byCat={};INCOME_RECORDS.forEach(r=>byCat[r.cat]=(byCat[r.cat]||0)+r.usd);
+  const totalTRY=INCOME_RECORDS.reduce((s,r)=>s+(r.try||Math.round(r.usd*r.rate)),0);
+  const byCat={};INCOME_RECORDS.forEach(r=>byCat[r.cat]=(byCat[r.cat]||0)+(r.try||Math.round(r.usd*r.rate)));
   const catColors={Maaş:'#4f8ef7','Kira Geliri':'#34d399','Ek Gelir':'#fbbf24',Temettü:'#a78bfa',Diğer:'#8b909e'};
   return`
   <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
-    <div class="metric c-blue"><div class="m-label">Toplam Gelir (Bu Ay)</div><div class="m-value">${fmtUSD(totalUSD)}</div><div class="m-sub">${fmtTRY(totalUSD*FX)}</div></div>
-    <div class="metric c-green"><div class="m-label">Maaş</div><div class="m-value">${fmtUSD(byCat['Maaş']||0)}</div></div>
-    <div class="metric c-teal"><div class="m-label">Kira Geliri</div><div class="m-value">${fmtUSD(byCat['Kira Geliri']||0)}</div></div>
-    <div class="metric c-amber"><div class="m-label">Ek Gelir</div><div class="m-value">${fmtUSD((byCat['Ek Gelir']||0)+(byCat['Temettü']||0)+(byCat['Diğer']||0))}</div></div>
+    <div class="metric c-green"><div class="m-label">Toplam Gelir</div><div class="m-value">${fmtTRY(totalTRY)}</div><div class="m-sub">${fmtUSD(totalTRY/FX,0)}</div></div>
+    <div class="metric c-blue"><div class="m-label">Maaş</div><div class="m-value">${fmtTRY(byCat['Maaş']||0)}</div></div>
+    <div class="metric c-teal"><div class="m-label">Kira Geliri</div><div class="m-value">${fmtTRY(byCat['Kira Geliri']||0)}</div></div>
+    <div class="metric c-amber"><div class="m-label">Ek / Diğer</div><div class="m-value">${fmtTRY((byCat['Ek Gelir']||0)+(byCat['Temettü']||0)+(byCat['Diğer']||0))}</div></div>
   </div>
   <div class="card">
     <div class="card-header">
@@ -1704,21 +1704,33 @@ function pageGelirler(){
       <button class="btn btn-primary" onclick="openIncomeModal()">+ Gelir Ekle</button>
     </div>
     <table class="data-table">
-      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>USD</th><th>Kur</th><th>₺ Tutarı</th><th style="width:36px"></th></tr></thead>
+      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>Hesap</th><th>₺ Tutarı</th><th>$ / Kur</th><th style="width:36px"></th></tr></thead>
       <tbody>${INCOME_RECORDS.map((r,i)=>`<tr>
         <td style="color:var(--text3);font-family:var(--mono)">${r.date}</td>
         <td style="font-weight:500">${r.desc}</td>
         <td><span class="tag" style="background:${catColors[r.cat]||'#888'}18;color:${catColors[r.cat]||'#888'}">${r.cat}</span></td>
         <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(r.member)}22;color:${mColor(r.member)}">${mInit(r.member)}</div>${r.member}</div></td>
-        <td style="font-family:var(--mono);font-weight:500;color:var(--green)">+${fmtUSD(r.usd,2)}</td>
-        <td><span class="fx-badge">₺${r.rate}</span></td>
-        <td style="font-family:var(--mono);color:var(--green)">+${fmtTRY(r.usd*r.rate)}</td>
-        <td><button onclick="deleteIncome(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.color='var(--red)';this.style.background='rgba(248,113,113,.1)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button></td>
-      </tr>`).join('')}</tbody>
+        <td style="font-size:11px;color:var(--green)">${r.bankName&&r.bankName!=='Nakit'?'🏦 '+r.bankName:'💵 Nakit'}</td>
+        <td style="font-family:var(--mono);font-weight:600;color:var(--green)">+${fmtTRY(r.try||Math.round(r.usd*r.rate))}</td>
+        <td style="font-size:10px;color:var(--text3)">+${fmtUSD(r.usd,2)}<br><span class="fx-badge">₺${r.rate}</span></td>
+        <td><button onclick="deleteIncome(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.color='var(--red)';this.style.background='rgba(248,113,113,.1)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'" title="Sil">✕</button></td>
+      </tr>`).join('')}
+      ${INCOME_RECORDS.length===0?'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Gelir kaydı yok</td></tr>':''}
+      </tbody>
     </table>
   </div>`;
 }
-window.deleteIncome=function(i){INCOME_RECORDS.splice(i,1);switchPage('gelirler',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});};
+window.deleteIncome=function(i){
+  const r=INCOME_RECORDS[i];
+  // Hesaba yatmışsa bakiyeyi geri al
+  if(r?.bankName&&r.bankName!=='Nakit'){
+    const b=BANKS.find(x=>x.name===r.bankName);
+    if(b) b.balanceTRY-=(r.try||Math.round(r.usd*r.rate));
+  }
+  INCOME_RECORDS.splice(i,1);
+  switchPage('gelirler',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});
+};
 
 // ─── BORÇ/ALACAK PAGE ────────────────────────────────────────────────────────
 function pageBorclar(){
@@ -2238,21 +2250,33 @@ window.openIncomeModal=function(){
   const html=`<div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">Gelir Ekle</div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Tarih</label><input class="form-input" type="date" id="inc-date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="form-group"><label class="form-label">Tarih</label>
+        <input class="form-input" type="date" id="inc-date" value="${new Date().toISOString().slice(0,10)}">
+      </div>
       <div class="form-group"><label class="form-label">Kategori</label>
         <select class="form-input" id="inc-cat">
           <option>Maaş</option><option>Kira Geliri</option><option>Ek Gelir</option><option>Temettü</option><option>Diğer</option>
         </select>
       </div>
     </div>
-    <div class="form-group"><label class="form-label">Açıklama</label><input class="form-input" id="inc-desc" placeholder="Gelir açıklaması..."></div>
+    <div class="form-group"><label class="form-label">Açıklama</label>
+      <input class="form-input" id="inc-desc" placeholder="Gelir açıklaması...">
+    </div>
     <div class="form-group"><label class="form-label">Aile Üyesi</label>
       <select class="form-input" id="inc-member">${MEMBERS.map(m=>`<option>${m.name}</option>`).join('')}</select>
     </div>
+    <div class="form-group"><label class="form-label">Yatacak Hesap</label>
+      <select class="form-input" id="inc-bank" onchange="updateIncBankInfo()">
+        <option value="">— Hesap seçin —</option>
+        ${BANKS.map(b=>`<option value="${b.name}">${b.name} · ${fmtTRY(b.balanceTRY)}</option>`).join('')}
+        <option value="Nakit">💵 Nakit (hesaba yatmaz)</option>
+      </select>
+    </div>
+    <div id="inc-bank-info" style="display:none;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--green)"></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Tutar (₺)</label>
         <input class="form-input" type="number" id="inc-try-in" placeholder="0,00"
-          oninput="const r=parseFloat(document.getElementById('inc-rate').value)||FX;const t=parseFloat(this.value)||0;document.getElementById('inc-usd-disp').value=t>0?fmtUSD(t/r,2):'';document.getElementById('inc-usd-disp').style.color='var(--teal)'">
+          oninput="const r=parseFloat(document.getElementById('inc-rate').value)||FX;const t=parseFloat(this.value)||0;document.getElementById('inc-usd-disp').value=t>0?fmtUSD(t/r,2):'';updateIncBankInfo()">
       </div>
       <div class="form-group"><label class="form-label">Kur (₺/$)</label>
         <input class="form-input" type="number" id="inc-rate" value="${FX}"
@@ -2269,6 +2293,20 @@ window.openIncomeModal=function(){
   </div>`;
   showDynModal(html);
 };
+
+window.updateIncBankInfo=function(){
+  const bankName=$('inc-bank')?.value;
+  const tryVal=parseFloat($('inc-try-in')?.value)||0;
+  const info=$('inc-bank-info');
+  if(!info) return;
+  if(!bankName||bankName==='Nakit'||bankName===''){info.style.display='none';return;}
+  const b=BANKS.find(x=>x.name===bankName);
+  if(!b){info.style.display='none';return;}
+  const newBal=b.balanceTRY+(tryVal||0);
+  info.style.display='block';
+  info.innerHTML=`🏦 <strong>${b.name}</strong> — Mevcut: ${fmtTRY(b.balanceTRY)} → Gelir sonrası: <strong>${fmtTRY(newBal)}</strong>`;
+};
+
 window.saveIncome=function(){
   const dateRaw=$('inc-date').value;
   const MN=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
@@ -2277,11 +2315,22 @@ window.saveIncome=function(){
   const tryVal=parseFloat($('inc-try-in').value)||0;
   const rate=parseFloat($('inc-rate').value)||FX;
   const usd=rate>0?+(tryVal/rate).toFixed(2):0;
+  const bankName=$('inc-bank').value;
   if(tryVal<=0){alert('Lütfen ₺ tutarı girin.');return;}
+  if(!bankName){alert('Lütfen bir hesap seçin.');return;}
+
+  // Hesaba yatır
+  if(bankName&&bankName!=='Nakit'){
+    const b=BANKS.find(x=>x.name===bankName);
+    if(b) b.balanceTRY+=Math.round(tryVal);
+  }
+
   INCOME_RECORDS.unshift({id:incNextId++,date:label,desc:$('inc-desc').value||'Gelir',
     member:$('inc-member').value,cat:$('inc-cat').value,
-    usd,rate,try:Math.round(tryVal)});
-  closeDynModal();switchPage('gelirler',null);document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});
+    usd,rate,try:Math.round(tryVal),bankName:bankName||null});
+  closeDynModal();
+  switchPage('gelirler',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('gelirler'))n.classList.add('active');});
 };
 
 // ─── AV MODAL ─────────────────────────────────────────────────────────────────
