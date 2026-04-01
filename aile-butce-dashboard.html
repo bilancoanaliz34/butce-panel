@@ -483,7 +483,24 @@ const fmtTRY=v=>'₺'+Math.round(+v).toLocaleString('tr-TR');
 const toUSD=try_=>try_/FX;
 const mColor=name=>MEMBERS.find(m=>m.name===name)?.color||'#888';
 
-// Tablo satır filtresi — arama kutusu için
+// Merkezi tarih parse — dateISO varsa onu, yoksa date+year'dan hesapla
+function parseEntryDate(t){
+  if(t.dateISO) return new Date(t.dateISO);
+  if(t._sortDate) return new Date(t._sortDate);
+  const parts=(t.date||'').split(' ');
+  const mo=MN_TR.indexOf(parts[1]);
+  const yr=t.year||new Date().getFullYear();
+  return new Date(yr, mo<0?0:mo, parseInt(parts[0])||1);
+}
+
+// Tarihi "28 Mar 2026" formatında göster — yılı her zaman ekle
+function fmtDateFull(t){
+  const d=parseEntryDate(t);
+  if(isNaN(d)) return t.date||'';
+  return `${d.getDate()} ${MN_TR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Tablo satır filtresi
 window.filterTable=function(inputId, tbodyId){
   const q=(document.getElementById(inputId)?.value||'').toLowerCase().trim();
   const rows=document.getElementById(tbodyId)?.querySelectorAll('tr')||[];
@@ -491,6 +508,31 @@ window.filterTable=function(inputId, tbodyId){
     const text=r.getAttribute('data-search')||r.textContent.toLowerCase();
     r.style.display=(!q||text.includes(q))?'':'none';
   });
+};
+
+// Tablo sıralama — th'a tıklayınca
+window.sortTableByCol=function(tbodyId, colIdx, isDate){
+  const tbody=document.getElementById(tbodyId);
+  if(!tbody) return;
+  const rows=[...tbody.querySelectorAll('tr[data-search]')];
+  const btn=document.querySelector(`[data-sort-tbody="${tbodyId}"][data-sort-col="${colIdx}"]`);
+  const asc=btn?.getAttribute('data-asc')==='1';
+  rows.sort((a,b)=>{
+    const ta=a.querySelectorAll('td')[colIdx]?.textContent.trim()||'';
+    const tb=b.querySelectorAll('td')[colIdx]?.textContent.trim()||'';
+    if(isDate){
+      // "28 Mar 2026" formatını parse et
+      const pa=ta.split(' '),pb=tb.split(' ');
+      const da=new Date(`${pa[2]||2026} ${pa[1]||'Oca'} ${pa[0]||1}`);
+      const db=new Date(`${pb[2]||2026} ${pb[1]||'Oca'} ${pb[0]||1}`);
+      return asc?da-db:db-da;
+    }
+    return asc?ta.localeCompare(tb,'tr'):tb.localeCompare(ta,'tr');
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+  // Toggle state
+  document.querySelectorAll(`[data-sort-tbody="${tbodyId}"]`).forEach(b=>b.setAttribute('data-asc','0'));
+  if(btn) btn.setAttribute('data-asc', asc?'0':'1');
 };
 const mInit =name=>MEMBERS.find(m=>m.name===name)?.initials||name.slice(0,2).toUpperCase();
 const INV_COLORS={kripto:'#fbbf24',hisse:'#4f8ef7',altin:'#f59e0b',fon:'#34d399',bes:'#a78bfa'};
@@ -847,7 +889,7 @@ function renderCCDetail(idx){
           ${txns.map((t,ti)=>{
             const tIdx=allTransactions.indexOf(t);
             return`<tr>
-              <td style="color:var(--text3);font-family:var(--mono);padding-left:20px">${t.date}</td>
+              <td style="color:var(--text3);font-family:var(--mono);padding-left:20px;font-size:11px">${fmtDateFull(t)}</td>
               <td style="font-weight:500">${t.desc}${t.installment?` <span style="font-size:9px;background:#22d3ee18;color:var(--teal);padding:1px 5px;border-radius:3px">${t.installment.current}/${t.installment.total}</span>`:''}</td>
               <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
               <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
@@ -1182,19 +1224,13 @@ function deleteTransaction(idx){
 window.deleteTransaction=deleteTransaction;
 
 function pageHarcamalar(){
-  // En yeni en üstte — dateISO varsa onu kullan, yoksa date string
-  const sorted=[...allTransactions].sort((a,b)=>{
-    const da=a.dateISO?new Date(a.dateISO):new Date('2026 '+a.date);
-    const db=b.dateISO?new Date(b.dateISO):new Date('2026 '+b.date);
-    return db-da;
-  });
+  const sorted=[...allTransactions].sort((a,b)=>parseEntryDate(b)-parseEntryDate(a));
 
-  const rows=sorted.map((t,si)=>{
+  const rows=sorted.map(t=>{
     const idx=allTransactions.indexOf(t);
-    const dateDisp=t.dateISO
-      ? (() => { const d=new Date(t.dateISO); return `${d.getDate()} ${MN_TR[d.getMonth()]} ${d.getFullYear()}`; })()
-      : t.date+(t.year&&t.year!==new Date().getFullYear()?' '+t.year:'');
-    return`<tr data-search="${(t.desc+' '+(t.brand||'')+' '+(t.member||'')+' '+(t.cat||'')+' '+(t.bankName||t.card||'')).toLowerCase()}">
+    const dateDisp=fmtDateFull(t);
+    const tryAmt=t.try||Math.round((t.usd||0)*(t.rate||FX));
+    return`<tr data-search="${(t.desc+' '+(t.brand||'')+' '+(t.member||'')+' '+(t.cat||'')+' '+(t.bankName||t.card||'')+' '+dateDisp).toLowerCase()}">
       <td style="color:var(--text3);font-family:var(--mono);white-space:nowrap;font-size:11px">${dateDisp}</td>
       <td style="font-weight:500">${t.desc}${t.installment?` <span style="font-size:9px;background:#22d3ee18;color:var(--teal);padding:1px 5px;border-radius:3px">${t.installment.current}/${t.installment.total}</span>`:''}</td>
       <td style="font-size:11px;color:var(--text3)">${t.brand||'—'}</td>
@@ -1202,16 +1238,17 @@ function pageHarcamalar(){
       <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat}</span></td>
       <td><div style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:20px;height:20px;font-size:8px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member}</div></td>
       <td style="font-size:11px;color:var(--text3)">${t.bankName?'🏦 '+t.bankName:t.card?.startsWith('kart:')?'💳 '+t.card.slice(5):t.card||'—'}</td>
-      <td style="font-family:var(--mono);font-weight:600">${fmtTRY(t.try)}</td>
+      <td style="font-family:var(--mono);font-weight:600">${fmtTRY(tryAmt)}</td>
       <td style="font-size:10px;color:var(--text3)">${fmtUSD(t.usd,2)}</td>
       <td><button onclick="deleteTransaction(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button></td>
     </tr>`;
   }).join('');
 
+  const thStyle='cursor:pointer;user-select:none;white-space:nowrap';
   return`
   <div class="card">
     <div class="card-header">
-      <div><div class="card-title">Tüm Harcamalar</div><div class="card-sub">${allTransactions.length} işlem · en yeni üstte</div></div>
+      <div><div class="card-title">Tüm Harcamalar</div><div class="card-sub">${allTransactions.length} işlem</div></div>
       <div style="display:flex;gap:8px;align-items:center">
         <input class="form-input" type="text" id="harcama-search" placeholder="🔍 Ara..." style="width:180px;padding:6px 10px;font-size:12px"
           oninput="filterTable('harcama-search','harcama-tbody')">
@@ -1219,7 +1256,12 @@ function pageHarcamalar(){
       </div>
     </div>
     <table class="data-table">
-      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Ürün/Marka</th><th>Miktar</th><th>Kategori</th><th>Kişi</th><th>Hesap/Kart</th><th>₺ Tutar</th><th>USD</th><th style="width:36px"></th></tr></thead>
+      <thead><tr>
+        <th style="${thStyle}" data-sort-tbody="harcama-tbody" data-sort-col="0" data-asc="0" onclick="sortTableByCol('harcama-tbody',0,true)">Tarih ↕</th>
+        <th>Açıklama</th><th>Ürün/Marka</th><th>Miktar</th><th>Kategori</th><th>Kişi</th><th>Hesap/Kart</th>
+        <th style="${thStyle}" data-sort-tbody="harcama-tbody" data-sort-col="7" data-asc="0" onclick="sortTableByCol('harcama-tbody',7,false)">₺ Tutar ↕</th>
+        <th>USD</th><th style="width:36px"></th>
+      </tr></thead>
       <tbody id="harcama-tbody">${rows}</tbody>
     </table>
   </div>`;
@@ -1817,17 +1859,18 @@ function pageBorclar(){
     const isGreen=a.type==='alacak';
     const statusMap={'ödendi':'badge-green','bekliyor':'badge-amber','gecikti':'badge-red','kısmi':'badge-blue'};
     const statusLabel={'ödendi':'Ödendi','bekliyor':'Bekliyor','gecikti':'Gecikti','kısmi':'Kısmi'};
+    const dateDisp=fmtDateFull(a);
     return`<tr style="${a.isAuto?'background:rgba(248,113,113,.04)':''}">
-      <td style="color:var(--text3);font-family:var(--mono)">${a.date}${a.year&&a.year!==new Date().getFullYear()?` <span style="font-size:9px;opacity:.7">${a.year}</span>`:''}</td>
+      <td style="color:var(--text3);font-family:var(--mono);white-space:nowrap;font-size:11px">${dateDisp}</td>
       <td style="font-weight:500">${a.person}${a.isAuto?` <span style="font-size:9px;background:rgba(251,191,36,.15);color:var(--amber);padding:1px 5px;border-radius:3px">otomatik</span>`:''}</td>
       <td style="color:var(--text3);font-size:11px">${a.desc}</td>
       <td style="font-family:var(--mono);font-weight:600;color:${isGreen?'var(--green)':'var(--red)'}">${isGreen?'+':'-'}${fmtTRY(tryAmt)}</td>
-      <td style="font-size:10px;color:var(--text3)">${isGreen?'+':'-'}${fmtUSD(usdAmt,2)}<br><span class="fx-badge" style="font-size:9px">${'\u20ba'}${(+(a.rate||FX)).toFixed(2)}</span></td>
+      <td style="font-size:10px;color:var(--text3)">${isGreen?'+':'-'}${fmtUSD(usdAmt,2)}</td>
       <td><span class="badge ${statusMap[a.status]||'badge-amber'}" ${a.isAuto?'':(`style="cursor:pointer" onclick="toggleAVStatus(${a.id})"`)}>
         ${statusLabel[a.status]||'Bekliyor'}</span></td>
       <td style="white-space:nowrap">
         ${a.isAuto
-          ?`<button onclick="markEkstreOdendi('${a.id}')" style="background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);border-radius:6px;cursor:pointer;color:var(--green);font-size:11px;padding:4px 10px;font-family:var(--font);transition:all .15s;white-space:nowrap" onmouseover="this.style.background='rgba(52,211,153,.25)'" onmouseout="this.style.background='rgba(52,211,153,.12)'">✓ Ödendi</button>`
+          ?`<button onclick="markEkstreOdendi('${a.id}')" style="background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);border-radius:6px;cursor:pointer;color:var(--green);font-size:11px;padding:4px 10px;font-family:var(--font)" onmouseover="this.style.background='rgba(52,211,153,.25)'" onmouseout="this.style.background='rgba(52,211,153,.12)'">✓ Ödendi</button>`
           :`<button onclick="openAVModal('${a.type}',${a.id})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'" title="Düzenle">✎</button>
              <button onclick="deleteAV(${a.id})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button>`}
       </td>
@@ -1857,8 +1900,13 @@ function pageBorclar(){
         </div>
       </div>
       <table class="data-table">
-        <thead><tr><th>Ödeme Tarihi</th><th>Kişi</th><th>Açıklama</th><th>₺ Tutar</th><th>$ / Kur</th><th>Durum</th><th style="width:80px"></th></tr></thead>
-        <tbody id="alacak-tbody">${alacaklar.map(a=>`<tr data-search="${(a.person+' '+a.desc+' '+(a.status||'')).toLowerCase()}">${renderRow(a).replace('<tr>','').replace('<tr style="">','')}`).join('')}${alacaklar.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Alacak kaydı yok</td></tr>':''}</tbody>
+        <thead><tr>
+          <th style="cursor:pointer;user-select:none" data-sort-tbody="alacak-tbody" data-sort-col="0" data-asc="0" onclick="sortTableByCol('alacak-tbody',0,true)">Ödeme Tarihi ↕</th>
+          <th>Kişi</th><th>Açıklama</th>
+          <th style="cursor:pointer;user-select:none" data-sort-tbody="alacak-tbody" data-sort-col="3" data-asc="0" onclick="sortTableByCol('alacak-tbody',3,false)">₺ Tutar ↕</th>
+          <th>$</th><th>Durum</th><th style="width:80px"></th>
+        </tr></thead>
+        <tbody id="alacak-tbody">${alacaklar.map(a=>{const r=renderRow(a);const ds=`data-search="${(a.person+' '+a.desc+' '+(a.status||'')).toLowerCase()}"`;return r.replace('<tr ','<tr '+ds+' ').replace('<tr>','<tr '+ds+'>');}).join('')}${alacaklar.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Alacak kaydı yok</td></tr>':''}</tbody>
       </table>
     </div>
     <div class="card">
@@ -1870,8 +1918,13 @@ function pageBorclar(){
         </div>
       </div>
       <table class="data-table">
-        <thead><tr><th>Ödeme Tarihi</th><th>Kişi</th><th>Açıklama</th><th>₺ Tutar</th><th>$ / Kur</th><th>Durum</th><th style="width:80px"></th></tr></thead>
-        <tbody id="verecek-tbody">${verecekler.map(a=>`<tr data-search="${(a.person+' '+a.desc+' '+(a.status||'')).toLowerCase()}">${renderRow(a).replace('<tr>','').replace(/^<tr style="[^"]*">/,'')}`).join('')}${verecekler.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Verecek kaydı yok</td></tr>':''}</tbody>
+        <thead><tr>
+          <th style="cursor:pointer;user-select:none" data-sort-tbody="verecek-tbody" data-sort-col="0" data-asc="0" onclick="sortTableByCol('verecek-tbody',0,true)">Ödeme Tarihi ↕</th>
+          <th>Kişi</th><th>Açıklama</th>
+          <th style="cursor:pointer;user-select:none" data-sort-tbody="verecek-tbody" data-sort-col="3" data-asc="0" onclick="sortTableByCol('verecek-tbody',3,false)">₺ Tutar ↕</th>
+          <th>$</th><th>Durum</th><th style="width:80px"></th>
+        </tr></thead>
+        <tbody id="verecek-tbody">${verecekler.map(a=>{const r=renderRow(a);const ds=`data-search="${(a.person+' '+a.desc+' '+(a.status||'')).toLowerCase()}"`;return r.replace('<tr ','<tr '+ds+' ').replace('<tr>','<tr '+ds+'>');}).join('')}${verecekler.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Verecek kaydı yok</td></tr>':''}</tbody>
       </table>
     </div>
   </div>`;
@@ -2257,6 +2310,7 @@ window.addTransaction=function(){
       const instDateDisplay=`${cutDay} ${MN_TR[mo]}`;
       const billingPeriod=`${MN_TR[mo]} ${yr}`;
       const t={...baseT,date:instDateDisplay,usd:perUSD,try:perTRY,
+        year:yr,
         installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},billingPeriod,
         bankName:bank?bank.name:null};
       allTransactions.push(t);
