@@ -722,7 +722,6 @@ function pageOzet(){
         <span><span style="display:inline-block;width:14px;height:3px;background:#34d399;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerç. Gelir</span>
         <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #f87171;margin-right:4px;vertical-align:middle"></span>Plan Gider</span>
         <span><span style="display:inline-block;width:14px;height:3px;background:#f87171;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerç. Gider</span>
-        <button onclick="openPlanModal()" class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px">✎ Planı Düzenle</button>
       </div>
     </div>
     <div class="chart-wrap" style="height:220px"><canvas id="ozBudgetLine"></canvas></div>
@@ -734,8 +733,9 @@ function pageOzet(){
         <div class="card-sub">Nakit + Yatırım + Gelirler + Planlanan Gelir + Alacaklar − Giderler − Planlanan Gider − Verecekler</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text3)">
-        <span><span style="display:inline-block;width:14px;height:3px;background:#3b82f6;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Net Varlık</span>
-        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed var(--text3);margin-right:4px;vertical-align:middle"></span>Başlangıç</span>
+        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #3b82f6;margin-right:4px;vertical-align:middle"></span>Planlanan</span>
+        <span><span style="display:inline-block;width:14px;height:3px;background:#a78bfa;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
+        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #8b909e;margin-right:4px;vertical-align:middle"></span>Başlangıç</span>
       </div>
     </div>
     <div class="chart-wrap" style="height:200px"><canvas id="ozNetVarlik"></canvas></div>
@@ -1787,73 +1787,149 @@ window.saveBulkPlan=function(type){
 };
 function initCharts(page){
   if(page==='ozet'){
-    destroyChart('ozBudgetLine');
-    const {incByMonth,expByMonth,alacakByMonth,verecekByMonth}=getActualByMonth();
+    // ── Veri hazırlama ────────────────────────────────────────────────────────
+    const n=24; // 24 ay
 
-    // Kümülatif hesapla
-    const cumulate=(arr,nullEmpty=false)=>{
-      let sum=0; return arr.map(v=>{
-        if(nullEmpty&&!v) return null;
-        sum+=v||0; return sum||null;
+    // Planlanan gelir: PLAN_INC_CATS'tan (Planlanan sayfasından)
+    const planIncArr=MONTH_PERIOD.map((_,i)=>
+      PLAN_INC_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0)
+    );
+    // Planlanan gider: PLAN_EXP_CATS'tan
+    const planExpArr=MONTH_PERIOD.map((_,i)=>
+      PLAN_EXP_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0)
+    );
+
+    // Gerçekleşen gelir: gelirler sayfasından
+    const actIncArr=new Array(n).fill(0);
+    INCOME_RECORDS.forEach(r=>{
+      const d=parseEntryDate(r);
+      const idx=MONTH_PERIOD.findIndex(m=>m.mo===d.getMonth()&&m.yr===d.getFullYear());
+      if(idx>=0) actIncArr[idx]+=(r.try||Math.round((r.usd||0)*(r.rate||FX)));
+    });
+
+    // Gerçekleşen gider: nakit/banka harcamaları harcama tarihinde
+    //                    kart harcamaları ekstre ÖDEME tarihinde
+    const actExpArr=new Array(n).fill(0);
+    allTransactions.forEach(t=>{
+      let d;
+      if(t.bankName){
+        // Banka/nakit — harcama tarihinde
+        d=parseEntryDate(t);
+      } else if(t.billingPeriod){
+        // Kart — ekstre dönemi + payOffset gün = ödeme tarihi
+        const bp=t.billingPeriod.split(' ');
+        const bpMo=MN_TR.indexOf(bp[0]);
+        const bpYr=parseInt(bp[1])||new Date().getFullYear();
+        const cc=getCardByLabel(t.card);
+        const cutDay=cc?cc.cutDay:1;
+        const payOffset=cc?cc.payOffset||10:10;
+        const payDate=new Date(bpYr,bpMo<0?0:bpMo,cutDay+payOffset);
+        d=payDate;
+      } else {
+        d=parseEntryDate(t);
+      }
+      const idx=MONTH_PERIOD.findIndex(m=>m.mo===d.getMonth()&&m.yr===d.getFullYear());
+      if(idx>=0) actExpArr[idx]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
+    });
+
+    // Alacak/Verecek ödeme tarihine göre
+    const alacakArr=new Array(n).fill(0);
+    const verecekArr=new Array(n).fill(0);
+    ALACAK_VERECEK.filter(a=>a.status!=='ödendi').forEach(a=>{
+      const d=parseEntryDate(a);
+      const idx=MONTH_PERIOD.findIndex(m=>m.mo===d.getMonth()&&m.yr===d.getFullYear());
+      if(idx<0) return;
+      const amt=a.try||Math.round((a.usd||0)*(a.rate||FX));
+      if(a.type==='alacak') alacakArr[idx]+=amt;
+      else verecekArr[idx]+=amt;
+    });
+
+    // ── Kümülatif ─────────────────────────────────────────────────────────────
+    const cumulate=(arr,nullIfZero=false)=>{
+      let sum=0;
+      return arr.map(v=>{
+        if(nullIfZero&&!v&&sum===0) return null;
+        sum+=v||0;
+        return sum||null;
       });
     };
 
-    const planIncTRY=cumulate(PLAN_INC_TRY.map((v,i)=>v+(alacakByMonth[i]||0)));
-    const planExpTRY=cumulate(PLAN_EXP_TRY.map((v,i)=>v+(verecekByMonth[i]||0)));
-    const actIncTRY=cumulate(incByMonth,true);
-    const actExpTRY=cumulate(expByMonth,true);
+    const planIncCum=cumulate(planIncArr.map((v,i)=>v+(alacakArr[i]||0)));
+    const planExpCum=cumulate(planExpArr.map((v,i)=>v+(verecekArr[i]||0)));
+    const actIncCum=cumulate(actIncArr,true);
+    const actExpCum=cumulate(actExpArr,true);
+
+    // ── Grafik 1: Gelir & Gider ───────────────────────────────────────────────
+    destroyChart('ozBudgetLine');
     new Chart($('ozBudgetLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
-      {label:'Planlanan Gelir',data:planIncTRY,borderColor:'#34d39960',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:2,pointBackgroundColor:'#34d39960',borderWidth:1.5},
-      {label:'Gerçekleşen Gelir',data:actIncTRY,borderColor:'#34d399',backgroundColor:'rgba(52,211,153,.06)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#34d399',borderWidth:2.5,spanGaps:false},
-      {label:'Planlanan Gider',data:planExpTRY,borderColor:'#f8717160',borderDash:[5,4],backgroundColor:'transparent',tension:.4,pointRadius:2,pointBackgroundColor:'#f8717160',borderWidth:1.5},
-      {label:'Gerçekleşen Gider',data:actExpTRY,borderColor:'#f87171',backgroundColor:'rgba(248,113,113,.06)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5,spanGaps:false},
+      {label:'Planlanan Gelir',data:planIncCum,
+       borderColor:'#34d39960',borderDash:[5,4],backgroundColor:'transparent',
+       tension:.4,pointRadius:2,pointBackgroundColor:'#34d39960',borderWidth:1.5},
+      {label:'Gerçekleşen Gelir',data:actIncCum,
+       borderColor:'#34d399',backgroundColor:'rgba(52,211,153,.06)',fill:true,
+       tension:.4,pointRadius:3,pointBackgroundColor:'#34d399',borderWidth:2.5,spanGaps:false},
+      {label:'Planlanan Gider',data:planExpCum,
+       borderColor:'#f8717160',borderDash:[5,4],backgroundColor:'transparent',
+       tension:.4,pointRadius:2,pointBackgroundColor:'#f8717160',borderWidth:1.5},
+      {label:'Gerçekleşen Gider',data:actExpCum,
+       borderColor:'#f87171',backgroundColor:'rgba(248,113,113,.06)',fill:true,
+       tension:.4,pointRadius:3,pointBackgroundColor:'#f87171',borderWidth:2.5,spanGaps:false},
     ]},options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,boxHeight:2,font:{size:10},color:'#8b909e',usePointStyle:true}}},
-      scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},
+      scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:9},maxRotation:45}},
         y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'₺'+Math.round(v/1000)+'K'}}}}});
+
     destroyChart('ozDonut');
     new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:BUDGET_DATA.map(b=>b.actual),backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
-    // ── Net Varlık Pozisyonu ─────────────────────────────────────────────────
+
+    // ── Grafik 2: Net Varlık Pozisyonu ────────────────────────────────────────
     destroyChart('ozNetVarlik');
     {
-      const {incByMonth,expByMonth,alacakByMonth,verecekByMonth}=getActualByMonth();
-      const baseWealth=totalBankTRY()+totalInvTRY(); // anlık nakit+yatırım
+      const baseWealth=totalBankTRY()+totalInvTRY();
 
-      // Her ay için net değişim:
-      // + gerçekleşen gelir + planlanan gelir + alacaklar
-      // − gerçekleşen gider − planlanan gider − verecekler
-      const netByMonth=MONTHS_LABELS.map((_,i)=>{
-        const gercGelir=incByMonth[i]||0;
-        const gercGider=expByMonth[i]||0;
-        const planGelir=PLAN_INC_TRY[i]||0;
-        const planGider=PLAN_EXP_TRY[i]||0;
-        const alacak=alacakByMonth[i]||0;
-        const verecek=verecekByMonth[i]||0;
-        return gercGelir+planGelir+alacak-gercGider-planGider-verecek;
+      // Çizgi 1: Planlanan net pozisyon (alacak-verecek + planGelir - planGider)
+      let cum1=baseWealth;
+      const netPlan=MONTH_PERIOD.map((_,i)=>{
+        const delta=(planIncArr[i]||0)+(alacakArr[i]||0)-(planExpArr[i]||0)-(verecekArr[i]||0);
+        cum1+=delta;
+        return cum1;
       });
 
-      // Kümülatif — başlangıç varlığından itibaren
-      let cum=baseWealth;
-      const cumData=netByMonth.map(v=>{ cum+=v; return cum; });
-      const zero=new Array(12).fill(baseWealth);
+      // Çizgi 2: Gerçekleşen net pozisyon (gelirler - harcamalar + alacak - verecek)
+      let cum2=baseWealth;
+      let hasData=false;
+      const netAct=MONTH_PERIOD.map((_,i)=>{
+        const inc=actIncArr[i]||0;
+        const exp=actExpArr[i]||0;
+        const al=alacakArr[i]||0;
+        const ver=verecekArr[i]||0;
+        if(inc||exp||al||ver) hasData=true;
+        cum2+=(inc+al-exp-ver);
+        return hasData?cum2:null;
+      });
+
+      const zero=new Array(n).fill(baseWealth);
 
       new Chart($('ozNetVarlik'),{type:'line',data:{
         labels:MONTHS_LABELS,
         datasets:[
-          {label:'Net Varlık',data:cumData,
-           borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',
-           fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#3b82f6',
-           borderWidth:3,pointHoverRadius:6},
+          {label:'Planlanan Pozisyon',data:netPlan,
+           borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',
+           fill:true,tension:.4,pointRadius:2,pointBackgroundColor:'#3b82f6',
+           borderWidth:2,borderDash:[5,4]},
+          {label:'Gerçekleşen Pozisyon',data:netAct,
+           borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.08)',
+           fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#a78bfa',
+           borderWidth:2.5,spanGaps:false},
           {label:'Başlangıç',data:zero,
-           borderColor:'rgba(139,144,158,.35)',borderDash:[4,4],
-           backgroundColor:'transparent',pointRadius:0,borderWidth:1.5,tension:0},
+           borderColor:'rgba(139,144,158,.3)',borderDash:[3,3],
+           backgroundColor:'transparent',pointRadius:0,borderWidth:1,tension:0},
         ]
       },options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{
-          label:ctx=>`${ctx.dataset.label}: ${fmtTRY(ctx.raw)}`
-        }}},
+        plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,boxHeight:2,font:{size:10},color:'#8b909e',usePointStyle:true}},
+          tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtTRY(ctx.raw)}`}}},
         scales:{
-          x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},
+          x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:9},maxRotation:45}},
           y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',
             callback:v=>{
               const abs=Math.abs(v);
