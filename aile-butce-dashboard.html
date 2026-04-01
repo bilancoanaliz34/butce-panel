@@ -482,6 +482,7 @@ const fmtUSD=(v,d=0)=>'$'+(+v).toLocaleString('tr-TR',{minimumFractionDigits:d,m
 const fmtTRY=v=>'₺'+Math.round(+v).toLocaleString('tr-TR');
 const toUSD=try_=>try_/FX;
 const mColor=name=>MEMBERS.find(m=>m.name===name)?.color||'#888';
+const mInit=name=>MEMBERS.find(m=>m.name===name)?.initials||name.slice(0,2).toUpperCase();
 
 // Merkezi tarih parse — dateISO varsa onu, yoksa date+year'dan hesapla
 function parseEntryDate(t){
