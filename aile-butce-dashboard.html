@@ -1887,6 +1887,27 @@ function pageGelirler(){
   const totalTRY=INCOME_RECORDS.reduce((s,r)=>s+(r.try||Math.round(r.usd*r.rate)),0);
   const byCat={};INCOME_RECORDS.forEach(r=>byCat[r.cat]=(byCat[r.cat]||0)+(r.try||Math.round(r.usd*r.rate)));
   const catColors={Maaş:'#4f8ef7','Kira Geliri':'#34d399','Ek Gelir':'#fbbf24',Temettü:'#a78bfa',Diğer:'#8b909e'};
+
+  // En yeni üstte
+  const sorted=[...INCOME_RECORDS].sort((a,b)=>parseEntryDate(b)-parseEntryDate(a));
+
+  const rows=sorted.map(r=>{
+    const i=INCOME_RECORDS.indexOf(r);
+    const tryAmt=r.try||Math.round(r.usd*r.rate);
+    const dateDisp=fmtDateFull(r);
+    return`<tr data-search="${(r.desc+' '+r.cat+' '+r.member+' '+(r.bankName||'')+' '+dateDisp).toLowerCase()}">
+      <td style="color:var(--text3);font-family:var(--mono);white-space:nowrap;font-size:11px">${dateDisp}</td>
+      <td style="font-weight:500">${r.desc}</td>
+      <td><span class="tag" style="background:${catColors[r.cat]||'#888'}18;color:${catColors[r.cat]||'#888'}">${r.cat}</span></td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(r.member)}22;color:${mColor(r.member)}">${mInit(r.member)}</div>${r.member}</div></td>
+      <td style="font-size:11px;color:var(--green)">${r.bankName&&r.bankName!=='Nakit'?'🏦 '+r.bankName:'💵 Nakit'}</td>
+      <td style="font-family:var(--mono);font-weight:600;color:var(--green)">+${fmtTRY(tryAmt)}</td>
+      <td style="font-size:10px;color:var(--text3)">+${fmtUSD(r.usd,2)}</td>
+      <td><button onclick="deleteIncome(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  const thS='cursor:pointer;user-select:none;white-space:nowrap';
   return`
   <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
     <div class="metric c-green"><div class="m-label">Toplam Gelir</div><div class="m-value">${fmtTRY(totalTRY)}</div><div class="m-sub">${fmtUSD(totalTRY/FX,0)}</div></div>
@@ -1896,21 +1917,21 @@ function pageGelirler(){
   </div>
   <div class="card">
     <div class="card-header">
-      <div><div class="card-title">Gelir Kayıtları</div><div class="card-sub">${INCOME_RECORDS.length} kayıt</div></div>
-      <button class="btn btn-primary" onclick="openIncomeModal()">+ Gelir Ekle</button>
+      <div><div class="card-title">Gelir Kayıtları</div><div class="card-sub">${INCOME_RECORDS.length} kayıt · en yeni üstte</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" type="text" id="gelir-search" placeholder="🔍 Ara..." style="width:180px;padding:6px 10px;font-size:12px"
+          oninput="filterTable('gelir-search','gelir-tbody')">
+        <button class="btn btn-primary" onclick="openIncomeModal()">+ Gelir Ekle</button>
+      </div>
     </div>
     <table class="data-table">
-      <thead><tr><th>Tarih</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>Hesap</th><th>₺ Tutarı</th><th>$ / Kur</th><th style="width:36px"></th></tr></thead>
-      <tbody>${INCOME_RECORDS.map((r,i)=>`<tr>
-        <td style="color:var(--text3);font-family:var(--mono)">${r.date}</td>
-        <td style="font-weight:500">${r.desc}</td>
-        <td><span class="tag" style="background:${catColors[r.cat]||'#888'}18;color:${catColors[r.cat]||'#888'}">${r.cat}</span></td>
-        <td><div style="display:flex;align-items:center;gap:6px"><div class="avatar" style="width:22px;height:22px;font-size:9px;background:${mColor(r.member)}22;color:${mColor(r.member)}">${mInit(r.member)}</div>${r.member}</div></td>
-        <td style="font-size:11px;color:var(--green)">${r.bankName&&r.bankName!=='Nakit'?'🏦 '+r.bankName:'💵 Nakit'}</td>
-        <td style="font-family:var(--mono);font-weight:600;color:var(--green)">+${fmtTRY(r.try||Math.round(r.usd*r.rate))}</td>
-        <td style="font-size:10px;color:var(--text3)">+${fmtUSD(r.usd,2)}<br><span class="fx-badge">₺${r.rate}</span></td>
-        <td><button onclick="deleteIncome(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 6px;border-radius:4px;transition:all .15s" onmouseover="this.style.color='var(--red)';this.style.background='rgba(248,113,113,.1)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'" title="Sil">✕</button></td>
-      </tr>`).join('')}
+      <thead><tr>
+        <th style="${thS}" data-sort-tbody="gelir-tbody" data-sort-col="0" data-asc="0" onclick="sortTableByCol('gelir-tbody',0,true)">Tarih ↕</th>
+        <th>Açıklama</th><th>Kategori</th><th>Kişi</th><th>Hesap</th>
+        <th style="${thS}" data-sort-tbody="gelir-tbody" data-sort-col="5" data-asc="0" onclick="sortTableByCol('gelir-tbody',5,false)">₺ Tutarı ↕</th>
+        <th>$ </th><th style="width:36px"></th>
+      </tr></thead>
+      <tbody id="gelir-tbody">${rows}
       ${INCOME_RECORDS.length===0?'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Gelir kaydı yok</td></tr>':''}
       </tbody>
     </table>
@@ -2238,6 +2259,7 @@ function switchPage(name,el){
     initCharts(name);
     // Kaydedilmiş sıralamaları geri uygula
     if(name==='harcamalar') applySavedSort('harcama-tbody');
+    if(name==='gelirler') applySavedSort('gelir-tbody');
     if(name==='borclar'){
       applySavedSort('alacak-tbody');
       applySavedSort('verecek-tbody');
@@ -2700,7 +2722,8 @@ window.saveIncome=function(){
     if(b) b.balanceTRY+=Math.round(tryVal);
   }
 
-  INCOME_RECORDS.unshift({id:incNextId++,date:label,desc:$('inc-desc').value||'Gelir',
+  INCOME_RECORDS.unshift({id:incNextId++,date:label,dateISO:dateRaw,year:d.getFullYear(),
+    desc:$('inc-desc').value||'Gelir',
     member:$('inc-member').value,cat:$('inc-cat').value,
     usd,rate,try:Math.round(tryVal),bankName:bankName||null});
   closeDynModal();
