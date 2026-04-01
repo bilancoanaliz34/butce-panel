@@ -900,7 +900,7 @@ function renderCCDetail(idx){
             </td>
             <td style="font-size:11px;font-family:var(--mono);color:var(--amber);padding:8px 12px;text-align:right">${fmtTRY(totalTRY)}</td>
             <td style="padding:8px 12px;text-align:right">
-              <button onclick="editBillingPeriod(${idx},'${period}')" style="background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text3);font-size:10px;padding:2px 6px;cursor:pointer;font-family:var(--font)">✎ Dönem</button>
+              <button onclick="editBillingPeriod(${idx},this.getAttribute('data-period'))" data-period="${period}" style="background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text3);font-size:10px;padding:2px 6px;cursor:pointer;font-family:var(--font)">✎ Dönem</button>
             </td>
           </tr>
           ${txns.map((t,ti)=>{
@@ -976,7 +976,7 @@ window.editBillingPeriod=function(ccIdx, oldPeriod){
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
-      <button class="btn btn-primary" onclick="saveBillingPeriodEdit(${ccIdx},'${oldPeriod}')">Taşı</button>
+      <button class="btn btn-primary" onclick="saveBillingPeriodEdit(${ccIdx},this.getAttribute('data-old'))" data-old="${oldPeriod}">Taşı</button>
     </div>
   </div>`;
   showDynModal(html);
@@ -985,10 +985,18 @@ window.editBillingPeriod=function(ccIdx, oldPeriod){
 window.saveBillingPeriodEdit=function(ccIdx, oldPeriod){
   const newPeriod=$('ep-new').value;
   const cc=CREDIT_CARDS[ccIdx];
-  cc.txns.forEach(t=>{ if(t.billingPeriod===oldPeriod) t.billingPeriod=newPeriod; });
-  allTransactions.forEach(t=>{ if(t.billingPeriod===oldPeriod&&t.card===cc.label) t.billingPeriod=newPeriod; });
+  if(!newPeriod||newPeriod===oldPeriod){closeDynModal();return;}
+  let changed=0;
+  allTransactions.forEach(t=>{
+    if(t.billingPeriod===oldPeriod && getCardByLabel(t.card)===cc){
+      t.billingPeriod=newPeriod;
+      changed++;
+    }
+  });
   closeDynModal();
   const el=$('ccDetail'); if(el) el.innerHTML=renderCCDetail(ccIdx);
+  if(changed>0) saveAll();
+  else alert('Taşınacak işlem bulunamadı.');
 };
 
 // Card settings modal — new or edit
