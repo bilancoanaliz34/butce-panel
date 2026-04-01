@@ -517,22 +517,39 @@ window.sortTableByCol=function(tbodyId, colIdx, isDate){
   const rows=[...tbody.querySelectorAll('tr[data-search]')];
   const btn=document.querySelector(`[data-sort-tbody="${tbodyId}"][data-sort-col="${colIdx}"]`);
   const asc=btn?.getAttribute('data-asc')==='1';
+
   rows.sort((a,b)=>{
     const ta=a.querySelectorAll('td')[colIdx]?.textContent.trim()||'';
     const tb=b.querySelectorAll('td')[colIdx]?.textContent.trim()||'';
     if(isDate){
-      // "28 Mar 2026" formatını parse et
-      const pa=ta.split(' '),pb=tb.split(' ');
-      const da=new Date(`${pa[2]||2026} ${pa[1]||'Oca'} ${pa[0]||1}`);
-      const db=new Date(`${pb[2]||2026} ${pb[1]||'Oca'} ${pb[0]||1}`);
-      return asc?da-db:db-da;
+      // "28 Mar 2026" → Date
+      const parseTR=s=>{
+        const p=s.replace(/\s+/g,' ').trim().split(' ');
+        const mo=MN_TR.indexOf(p[1]);
+        return new Date(parseInt(p[2])||new Date().getFullYear(), mo<0?0:mo, parseInt(p[0])||1);
+      };
+      return asc ? parseTR(ta)-parseTR(tb) : parseTR(tb)-parseTR(ta);
     }
-    return asc?ta.localeCompare(tb,'tr'):tb.localeCompare(ta,'tr');
+    // Sayısal sıralama (₺ tutarı için)
+    const na=parseFloat(ta.replace(/[^\d.,]/g,'').replace(',','.'))||0;
+    const nb=parseFloat(tb.replace(/[^\d.,]/g,'').replace(',','.'))||0;
+    if(na||nb) return asc ? na-nb : nb-na;
+    return asc ? ta.localeCompare(tb,'tr') : tb.localeCompare(ta,'tr');
   });
+
   rows.forEach(r=>tbody.appendChild(r));
-  // Toggle state
-  document.querySelectorAll(`[data-sort-tbody="${tbodyId}"]`).forEach(b=>b.setAttribute('data-asc','0'));
-  if(btn) btn.setAttribute('data-asc', asc?'0':'1');
+
+  // İşaret güncelle — tüm bu tbody'nin butonlarını sıfırla
+  document.querySelectorAll(`[data-sort-tbody="${tbodyId}"]`).forEach(b=>{
+    const lbl=b.textContent.replace(' ↑','').replace(' ↓','').replace(' ↕','');
+    b.textContent=lbl+' ↕';
+    b.setAttribute('data-asc','0');
+  });
+  if(btn){
+    const lbl=btn.textContent.replace(' ↑','').replace(' ↓','').replace(' ↕','');
+    btn.textContent=lbl+(asc?' ↓':' ↑');
+    btn.setAttribute('data-asc',asc?'0':'1');
+  }
 };
 const mInit =name=>MEMBERS.find(m=>m.name===name)?.initials||name.slice(0,2).toUpperCase();
 const INV_COLORS={kripto:'#fbbf24',hisse:'#4f8ef7',altin:'#f59e0b',fon:'#34d399',bes:'#a78bfa'};
