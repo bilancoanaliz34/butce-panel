@@ -419,36 +419,62 @@ let incNextId=5;
 const CATEGORIES = ['Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'];
 const CAT_COLORS  = {Kira:'#4f8ef7',Market:'#34d399',Ulaşım:'#22d3ee',Eğlence:'#a78bfa',Faturalar:'#fbbf24',Sağlık:'#f87171',Eğitim:'#fb923c',Giyim:'#f472b6',Diğer:'#8b909e'};
 
-const MONTHS_LABELS = ['Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara','Oca','Şub','Mar'];
-// Tüm aylar için planlanan veriler (TL bazlı, sonra FX ile USD'ye çevirilir)
-let PLAN_INC_TRY  = [120000,120000,120000,120000,120000,120000,120000,120000,130000,120000,120000,120000];
-let PLAN_EXP_TRY  = [50000,50000,52000,50000,50000,50000,50000,53000,55000,50000,51000,51000];
-// Gerçekleşen veriler dinamik hesaplanır (INCOME_RECORDS ve allTransactions'dan)
+// 12 aylık dönem: bugünden 6 ay önce → 5 ay sonra (dinamik, yıllı)
+const MN_TR=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+
+function buildMonthPeriod(){
+  const now=new Date();
+  const months=[];
+  for(let i=-6;i<=5;i++){
+    let mo=now.getMonth()+i;
+    let yr=now.getFullYear()+Math.floor(mo/12);
+    mo=((mo%12)+12)%12;
+    months.push({mo, yr, label:`${MN_TR[mo]} '${String(yr).slice(2)}`});
+  }
+  return months; // 12 eleman
+}
+
+const MONTH_PERIOD=buildMonthPeriod();
+const MONTHS_LABELS=MONTH_PERIOD.map(m=>m.label);
+
+// Tüm aylar için planlanan veriler (TL bazlı)
+let PLAN_INC_TRY  = new Array(12).fill(120000);
+let PLAN_EXP_TRY  = new Array(12).fill(50000);
+
 function getActualByMonth(){
   const incByMonth=new Array(12).fill(0);
   const expByMonth=new Array(12).fill(0);
   const alacakByMonth=new Array(12).fill(0);
   const verecekByMonth=new Array(12).fill(0);
-  const MN_IDX={Nis:0,May:1,Haz:2,Tem:3,Ağu:4,Eyl:5,Eki:6,Kas:7,Ara:8,Oca:9,Şub:10,Mar:11};
+
+  // Dönem içindeki ayı indeksle
+  function periodIdx(dateISO, dateStr, year){
+    let d;
+    if(dateISO) d=new Date(dateISO);
+    else {
+      const parts=(dateStr||'').split(' ');
+      const mo=MN_TR.indexOf(parts[1]);
+      const yr=year||new Date().getFullYear();
+      d=new Date(yr, mo<0?0:mo, parseInt(parts[0])||1);
+    }
+    if(isNaN(d)) return -1;
+    return MONTH_PERIOD.findIndex(m=>m.mo===d.getMonth()&&m.yr===d.getFullYear());
+  }
 
   INCOME_RECORDS.forEach(r=>{
-    const parts=(r.date||'').split(' ');
-    const mo=MN_IDX[parts[1]];
-    if(mo!=null) incByMonth[mo]+=(r.try||Math.round((r.usd||0)*(r.rate||FX)));
+    const idx=periodIdx(r.dateISO,r.date,r.year);
+    if(idx>=0) incByMonth[idx]+=(r.try||Math.round((r.usd||0)*(r.rate||FX)));
   });
   allTransactions.forEach(t=>{
-    const parts=(t.date||'').split(' ');
-    const mo=MN_IDX[parts[1]];
-    if(mo!=null) expByMonth[mo]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
+    const idx=periodIdx(t.dateISO,t.date,t.year);
+    if(idx>=0) expByMonth[idx]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
   });
-  // Alacak/Verecek — bekleyen kayıtları ödeme tarihine göre ilgili aya ekle
   ALACAK_VERECEK.filter(a=>a.status!=='ödendi').forEach(a=>{
-    const parts=(a.date||'').split(' ');
-    const mo=MN_IDX[parts[1]];
-    if(mo==null) return;
+    const idx=periodIdx(a.dateISO,a.date,a.year);
+    if(idx<0) return;
     const tryAmt=a.try||Math.round((a.usd||0)*(a.rate||FX));
-    if(a.type==='alacak') alacakByMonth[mo]+=tryAmt;
-    else verecekByMonth[mo]+=tryAmt;
+    if(a.type==='alacak') alacakByMonth[idx]+=tryAmt;
+    else verecekByMonth[idx]+=tryAmt;
   });
   return{incByMonth,expByMonth,alacakByMonth,verecekByMonth};
 }
@@ -2270,7 +2296,6 @@ window.switchPage=switchPage;
 
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 // ─── EKSTRA DÖNEM HESAPLAMALARI ───────────────────────────────────────────────
-const MN_TR=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 
 function getBillingPeriods(cc, fromDate, count=6){
   // Returns array of {label, year, month, cutDay} for next N billing periods
