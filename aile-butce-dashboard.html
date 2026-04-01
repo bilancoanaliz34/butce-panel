@@ -1226,6 +1226,103 @@ function pageYatirimlar(){
   </div>`;
 }
 
+window.openEditTransactionModal=function(idx){
+  const t=allTransactions[idx];
+  if(!t) return;
+  const tryAmt=t.try||Math.round((t.usd||0)*(t.rate||FX));
+  const dateVal=t.dateISO||new Date().toISOString().slice(0,10);
+
+  const html=`<div class="modal" style="width:500px" onclick="event.stopPropagation()">
+    <div class="modal-title">Harcama Düzenle</div>
+    <div class="form-group"><label class="form-label">Tarih</label>
+      <input class="form-input" type="date" id="et-date" value="${dateVal}">
+    </div>
+    <div class="form-group"><label class="form-label">Açıklama</label>
+      <input class="form-input" id="et-desc" value="${t.desc||''}">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Tutar (₺)</label>
+        <input class="form-input" type="number" id="et-try" value="${tryAmt}"
+          oninput="const r=parseFloat(document.getElementById('et-rate').value)||FX;const v=parseFloat(this.value)||0;document.getElementById('et-usd-disp').value=v>0?fmtUSD(v/r,2):'—'">
+      </div>
+      <div class="form-group"><label class="form-label">Kur (₺/$)</label>
+        <input class="form-input" type="number" id="et-rate" value="${t.rate||FX}"
+          oninput="const v=parseFloat(document.getElementById('et-try').value)||0;const r=parseFloat(this.value)||FX;document.getElementById('et-usd-disp').value=v>0?fmtUSD(v/r,2):'—'">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">USD (otomatik)</label>
+      <input class="form-input" id="et-usd-disp" value="${fmtUSD(t.usd,2)}" readonly style="color:var(--teal)">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Kategori</label>
+        <select class="form-input" id="et-cat">
+          ${['Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'].map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Aile Üyesi</label>
+        <select class="form-input" id="et-member">
+          ${MEMBERS.map(m=>`<option ${m.name===t.member?'selected':''}>${m.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Ürün / Marka</label>
+        <input class="form-input" id="et-brand" value="${t.brand||''}">
+      </div>
+      <div class="form-group"><label class="form-label">Miktar</label>
+        <div style="display:flex;gap:6px">
+          <input class="form-input" type="number" id="et-qty" value="${t.qty||''}" style="flex:1">
+          <select class="form-input" id="et-unit" style="width:90px">
+            ${['','kg','g','lt','ml','m','paket','kutu'].map(u=>`<option ${u===(t.unit||'')?'selected':''} value="${u}">${u||'adet'}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
+      <button class="btn btn-ghost" style="color:var(--red)" onclick="if(confirm('Sil?')){deleteTransaction(${idx});closeDynModal();}">Sil</button>
+      <button class="btn btn-primary" onclick="saveEditTransaction(${idx})">Güncelle</button>
+    </div>
+  </div>`;
+  showDynModal(html);
+};
+
+window.saveEditTransaction=function(idx){
+  const t=allTransactions[idx];
+  if(!t) return;
+  const dateRaw=$('et-date').value;
+  const d=new Date(dateRaw);
+  const dateLabel=`${d.getDate()} ${MN_TR[d.getMonth()]}`;
+  const tryVal=parseFloat($('et-try').value)||0;
+  const rate=parseFloat($('et-rate').value)||FX;
+  const usd=rate>0?+(tryVal/rate).toFixed(2):0;
+
+  // Banka bakiyesini güncelle — eski tutar geri ekle, yeni tutar düş
+  if(t.bankName){
+    const b=BANKS.find(x=>x.name===t.bankName);
+    if(b){ b.balanceTRY+=(t.try||0); b.balanceTRY-=Math.round(tryVal); }
+  }
+
+  allTransactions[idx]={...t,
+    date:dateLabel,
+    dateISO:dateRaw,
+    year:d.getFullYear(),
+    desc:$('et-desc').value||t.desc,
+    cat:$('et-cat').value,
+    member:$('et-member').value,
+    brand:$('et-brand').value||null,
+    qty:parseFloat($('et-qty').value)||null,
+    unit:$('et-unit').value||null,
+    try:Math.round(tryVal),
+    usd,
+    rate,
+  };
+
+  closeDynModal();
+  switchPage('harcamalar',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('harcamalar'))n.classList.add('active');});
+};
+
 function deleteTransaction(idx){
   const t=allTransactions[idx];
   if(!t) return;
@@ -1257,7 +1354,10 @@ function pageHarcamalar(){
       <td style="font-size:11px;color:var(--text3)">${t.bankName?'🏦 '+t.bankName:t.card?.startsWith('kart:')?'💳 '+t.card.slice(5):t.card||'—'}</td>
       <td style="font-family:var(--mono);font-weight:600">${fmtTRY(tryAmt)}</td>
       <td style="font-size:10px;color:var(--text3)">${fmtUSD(t.usd,2)}</td>
-      <td><button onclick="deleteTransaction(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button></td>
+      <td style="white-space:nowrap">
+        <button onclick="openEditTransactionModal(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'" title="Düzenle">✎</button>
+        <button onclick="deleteTransaction(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -1277,7 +1377,7 @@ function pageHarcamalar(){
         <th style="${thStyle}" data-sort-tbody="harcama-tbody" data-sort-col="0" data-asc="0" onclick="sortTableByCol('harcama-tbody',0,true)">Tarih ↕</th>
         <th>Açıklama</th><th>Ürün/Marka</th><th>Miktar</th><th>Kategori</th><th>Kişi</th><th>Hesap/Kart</th>
         <th style="${thStyle}" data-sort-tbody="harcama-tbody" data-sort-col="7" data-asc="0" onclick="sortTableByCol('harcama-tbody',7,false)">₺ Tutar ↕</th>
-        <th>USD</th><th style="width:36px"></th>
+        <th>USD</th><th style="width:60px"></th>
       </tr></thead>
       <tbody id="harcama-tbody">${rows}</tbody>
     </table>
