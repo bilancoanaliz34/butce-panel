@@ -516,13 +516,13 @@ window.sortTableByCol=function(tbodyId, colIdx, isDate){
   if(!tbody) return;
   const rows=[...tbody.querySelectorAll('tr[data-search]')];
   const btn=document.querySelector(`[data-sort-tbody="${tbodyId}"][data-sort-col="${colIdx}"]`);
-  const asc=btn?.getAttribute('data-asc')==='1';
+  const prevState=SORT_STATE[tbodyId];
+  const asc=(prevState?.col===colIdx) ? !prevState.asc : false;
 
   rows.sort((a,b)=>{
     const ta=a.querySelectorAll('td')[colIdx]?.textContent.trim()||'';
     const tb=b.querySelectorAll('td')[colIdx]?.textContent.trim()||'';
     if(isDate){
-      // "28 Mar 2026" → Date
       const parseTR=s=>{
         const p=s.replace(/\s+/g,' ').trim().split(' ');
         const mo=MN_TR.indexOf(p[1]);
@@ -530,7 +530,6 @@ window.sortTableByCol=function(tbodyId, colIdx, isDate){
       };
       return asc ? parseTR(ta)-parseTR(tb) : parseTR(tb)-parseTR(ta);
     }
-    // Sayısal sıralama (₺ tutarı için)
     const na=parseFloat(ta.replace(/[^\d.,]/g,'').replace(',','.'))||0;
     const nb=parseFloat(tb.replace(/[^\d.,]/g,'').replace(',','.'))||0;
     if(na||nb) return asc ? na-nb : nb-na;
@@ -538,20 +537,27 @@ window.sortTableByCol=function(tbodyId, colIdx, isDate){
   });
 
   rows.forEach(r=>tbody.appendChild(r));
+  SORT_STATE[tbodyId]={col:colIdx, asc, isDate};
 
-  // İşaret güncelle — tüm bu tbody'nin butonlarını sıfırla
   document.querySelectorAll(`[data-sort-tbody="${tbodyId}"]`).forEach(b=>{
-    const lbl=b.textContent.replace(' ↑','').replace(' ↓','').replace(' ↕','');
-    b.textContent=lbl+' ↕';
+    const lbl=b.textContent.replace(/ [\u2191\u2193\u2195]$/,'');
+    b.textContent=lbl+' \u2195';
     b.setAttribute('data-asc','0');
   });
   if(btn){
-    const lbl=btn.textContent.replace(' ↑','').replace(' ↓','').replace(' ↕','');
-    btn.textContent=lbl+(asc?' ↓':' ↑');
-    btn.setAttribute('data-asc',asc?'0':'1');
+    const lbl=btn.textContent.replace(/ [\u2191\u2193\u2195]$/,'');
+    btn.textContent=lbl+(asc?' \u2191':' \u2193');
+    btn.setAttribute('data-asc',asc?'1':'0');
   }
 };
-const mInit =name=>MEMBERS.find(m=>m.name===name)?.initials||name.slice(0,2).toUpperCase();
+
+function applySavedSort(tbodyId){
+  const s=SORT_STATE[tbodyId];
+  if(!s) return;
+  SORT_STATE[tbodyId]={...s,asc:!s.asc};
+  sortTableByCol(tbodyId,s.col,s.isDate);
+}
+
 const INV_COLORS={kripto:'#fbbf24',hisse:'#4f8ef7',altin:'#f59e0b',fon:'#34d399',bes:'#a78bfa'};
 const INV_LABELS={kripto:'Kripto',hisse:'Hisse',altin:'Altın',fon:'Fon',bes:'BES'};
 
@@ -2219,12 +2225,23 @@ const PAGE_TITLES={ozet:'Genel Özet',planlanan:'Planlanan Bütçe',butce:'Büt�
 const PAGE_FNS={ozet:pageOzet,planlanan:pagePlanlanan,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,analiz:pageAnaliz,kisiler:pageKisiler};
 let currentPage='ozet';
 
+// Sıralama hafızası — sayfa yenilenince korunur
+const SORT_STATE={}; // {tbodyId: {col, asc, isDate}}
+
 function switchPage(name,el){
   currentPage=name;
   if(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');}
   $('pageTitle').textContent=PAGE_TITLES[name]||name;
   $('mainContent').innerHTML=PAGE_FNS[name]?PAGE_FNS[name]():'';
-  setTimeout(()=>initCharts(name),60);
+  setTimeout(()=>{
+    initCharts(name);
+    // Kaydedilmiş sıralamaları geri uygula
+    if(name==='harcamalar') applySavedSort('harcama-tbody');
+    if(name==='borclar'){
+      applySavedSort('alacak-tbody');
+      applySavedSort('verecek-tbody');
+    }
+  },60);
 }
 window.switchPage=switchPage;
 
