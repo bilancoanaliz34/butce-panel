@@ -2474,14 +2474,18 @@ window.addTransaction=function(){
   const firstPeriod=periods?periods[selPeriodIdx]:null;
 
   if(inst===1){
-    let dateDisplay;
+    let dateDisplay, dateISO, yr;
     if(firstPeriod){
       dateDisplay=`${firstPeriod.cutDay} ${MN_TR[firstPeriod.month]}`;
+      yr=firstPeriod.year;
+      dateISO=`${yr}-${String(firstPeriod.month+1).padStart(2,'0')}-${String(firstPeriod.cutDay).padStart(2,'0')}`;
     } else {
       const d=new Date(dateRaw);
       dateDisplay=`${d.getDate()} ${MN_TR[d.getMonth()]}`;
+      yr=d.getFullYear();
+      dateISO=dateRaw;
     }
-    const t={...baseT,date:dateDisplay,usd,try:Math.round(tryVal),
+    const t={...baseT,date:dateDisplay,dateISO,year:yr,usd,try:Math.round(tryVal),
       installment:null,billingPeriod:firstPeriod?`${MN_TR[firstPeriod.month]} ${firstPeriod.year}`:null,
       bankName:bank?bank.name:null};
     allTransactions.unshift(t);
@@ -2491,23 +2495,29 @@ window.addTransaction=function(){
     const perTRY=Math.round(tryVal/inst);
     const perUSD=+(usd/inst).toFixed(2);
     const purchaseDate=new Date(dateRaw);
-    const purchaseLabel=`${purchaseDate.getDate()} ${MN_TR[purchaseDate.getMonth()]}`;
+    const purchaseLabel=`${purchaseDate.getDate()} ${MN_TR[purchaseDate.getMonth()]} ${purchaseDate.getFullYear()}`;
     for(let i=0;i<inst;i++){
       let mo=(firstPeriod?firstPeriod.month:purchaseDate.getMonth())+i;
       let yr=(firstPeriod?firstPeriod.year:purchaseDate.getFullYear())+Math.floor(mo/12);
       mo=mo%12;
       const cutDay=cc?cc.cutDay:1;
+      const instDateISO=`${yr}-${String(mo+1).padStart(2,'0')}-${String(cutDay).padStart(2,'0')}`;
       const instDateDisplay=`${cutDay} ${MN_TR[mo]}`;
       const billingPeriod=`${MN_TR[mo]} ${yr}`;
-      const t={...baseT,date:instDateDisplay,usd:perUSD,try:perTRY,
+      const t={...baseT,
+        date:instDateDisplay,
+        dateISO:instDateISO,
         year:yr,
-        installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},billingPeriod,
+        usd:perUSD,try:perTRY,
+        installment:{current:i+1,total:inst,originalUSD:usd,purchaseDate:purchaseLabel},
+        billingPeriod,
         bankName:bank?bank.name:null};
       allTransactions.push(t);
       if(cc) cc.spentTRY+=perTRY;
       if(bank) bank.balanceTRY=bank.balanceTRY-perTRY;
     }
-    allTransactions.sort((a,b)=>new Date('2026 '+b.date)-new Date('2026 '+a.date));
+    // dateISO ile doğru sırala
+    allTransactions.sort((a,b)=>parseEntryDate(b)-parseEntryDate(a));
   }
 
   closeModal();
