@@ -31,7 +31,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .nav-item.active{background:var(--bg3);color:var(--accent);border-left-color:var(--accent)}
 .nav-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}
 .nav-item.active .nav-icon{opacity:1}
-.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
+
 .month-sel{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 10px}
 .month-sel select{background:none;border:none;color:var(--text);font-size:12px;font-family:var(--font);outline:none;cursor:pointer;width:100%}
 .month-sel select option{background:#1e2330}
@@ -210,16 +210,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       Aile Üyeleri
     </div>
   </nav>
-  <div class="sidebar-footer">
-    <div class="month-sel">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="9" rx="1.5" stroke="#8b909e" stroke-width="1.2"/><path d="M4 1v2M8 1v2M1 5h10" stroke="#8b909e" stroke-width="1.2" stroke-linecap="round"/></svg>
-      <select id="monthSel">
-        <option value="10">Ekim 2025</option><option value="11">Kasım 2025</option>
-        <option value="12">Aralık 2025</option><option value="1">Ocak 2026</option>
-        <option value="2">Şubat 2026</option><option value="3" selected>Mart 2026</option>
-      </select>
-    </div>
-  </div>
 </aside>
 
 <div class="main">
@@ -2561,75 +2551,147 @@ function pageTuketim(){
   const totalProdTRY=products.reduce((s,p)=>s+p.totalTRY,0);
   const budgetShare=Math.round(totalProdTRY/totalAllTRY*100);
 
-  const rows=products.map((p,pi)=>{
-    const avgMonthQty=p.totalQty/monthCount;
-    const avgMonthTRY=p.totalTRY/monthCount;
-    const budgetPct=Math.round(p.totalTRY/totalAllTRY*100);
-    const barW=Math.min(100,budgetPct*3); // scale for visual
-    const catColor=CAT_COLORS[p.cat]||'#8b909e';
-    // Ay detayları
-    const monthRows=Object.entries(p.months).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk,mv])=>{
-      const [yr,mo]=mk.split('-');
-      const label=`${MN_TR[parseInt(mo)-1]} ${yr}`;
-      return`<tr style="background:rgba(124,90,245,.04)">
-        <td style="padding-left:32px;font-size:11px;color:var(--text3);font-family:var(--mono)">${label}</td>
-        <td colspan="2"></td>
-        <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text2)">${mv.qty.toLocaleString('tr-TR')} ${p.unit||'adet'}</td>
-        <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--amber)">${fmtTRY2(mv.try>0?mv.try:null)}</td>
-        <td style="font-size:10px;color:var(--text3);text-align:center">${mv.count} alım</td>
-        <td colspan="2"></td>
+  // Kategori başlıkları altında gruplandır — ay bazlı toplam da tut
+  const catGroups={};
+  products.forEach(p=>{
+    const cat=p.cat||'Kategorisiz';
+    if(!catGroups[cat]) catGroups[cat]={totalTRY:0,totalQty:0,products:[],months:{}};
+    catGroups[cat].products.push(p);
+    catGroups[cat].totalTRY+=p.totalTRY;
+    catGroups[cat].totalQty+=p.totalQty;
+    Object.entries(p.months).forEach(([mk,mv])=>{
+      if(!catGroups[cat].months[mk]) catGroups[cat].months[mk]={try:0,qty:0};
+      catGroups[cat].months[mk].try+=mv.try;
+      catGroups[cat].months[mk].qty+=mv.qty;
+    });
+  });
+
+  // Kategorileri toplam harcamaya göre sırala, içindeki ürünleri de
+  const sortedCats=Object.entries(catGroups).sort((a,b)=>b[1].totalTRY-a[1].totalTRY);
+  sortedCats.forEach(([,g])=>g.products.sort((a,b)=>b.totalTRY-a.totalTRY));
+
+  let pi=0;
+  const rows=sortedCats.map(([catName,group])=>{
+    const catColor=CAT_COLORS[catName]||'#8b909e';
+    const catAvgTRY=group.totalTRY/monthCount;
+    const catBudgetPct=Math.round(group.totalTRY/totalAllTRY*100);
+    const catId=`catg-${catName.replace(/\s/g,'_')}`;
+
+    const productRowsHtml=group.products.map(p=>{
+      const myPi=pi++;
+      const avgMonthQty=p.totalQty/monthCount;
+      const avgMonthTRY=p.totalTRY/monthCount;
+      const budgetPct=Math.round(p.totalTRY/totalAllTRY*100);
+      const barW=Math.min(100,budgetPct*3);
+
+      const monthRows=Object.entries(p.months).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk,mv])=>{
+        const [yr,mo]=mk.split('-');
+        const label=`${MN_TR[parseInt(mo)-1]} ${yr}`;
+        return`<tr style="background:rgba(124,90,245,.04)">
+          <td style="padding-left:48px;font-size:11px;color:var(--text3);font-family:var(--mono)">${label}</td>
+          <td colspan="2"></td>
+          <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text2)">${mv.qty.toLocaleString('tr-TR')} ${p.unit||'adet'}</td>
+          <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--amber)">${fmtTRY2(mv.try>0?mv.try:null)}</td>
+          <td style="font-size:10px;color:var(--text3);text-align:center">${mv.count} alım</td>
+          <td colspan="2"></td>
+        </tr>`;
+      }).join('');
+
+      return`<tr class="tuk-row tuk-cat-${catName.replace(/\s/g,'_')}"
+          data-tukat="${p.cat||''}"
+          data-tukname="${p.displayName.toLowerCase()}"
+          data-tukqty="${p.totalQty}"
+          data-tukavgqty="${avgMonthQty}"
+          data-tuktry="${p.totalTRY}"
+          data-tukavgtry="${avgMonthTRY}"
+          data-tukbudget="${budgetPct}"
+          data-tukay="${Object.keys(p.months).length}"
+          style="cursor:pointer" onclick="toggleTuketimDetail('td-${myPi}')"
+          onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
+        <td>
+          <div style="display:flex;align-items:center;gap:6px;padding-left:16px">
+            <span id="td-arr-${myPi}" style="color:var(--text3);font-size:10px;transition:transform .2s">▶</span>
+            <div>
+              <div style="font-weight:500">${p.displayName}</div>
+              ${p.displayBrand?`<div style="font-size:10px;color:var(--text3)">${p.displayBrand}</div>`:''}
+            </div>
+          </div>
+        </td>
+        <td></td>
+        <td style="font-family:var(--mono);font-weight:500;text-align:right">${p.totalQty>0?p.totalQty.toLocaleString('tr-TR')+' '+(p.unit||'adet'):'—'}</td>
+        <td style="font-family:var(--mono);text-align:right;color:var(--text3)">${avgMonthQty>0?(+avgMonthQty.toFixed(1)).toLocaleString('tr-TR')+' '+(p.unit||'adet')+'/ay':'—'}</td>
+        <td style="font-family:var(--mono);font-weight:500;text-align:right;color:var(--accent)">${fmtTRY2(p.totalTRY)}</td>
+        <td style="font-family:var(--mono);text-align:right;color:var(--amber)">${fmtTRY2(avgMonthTRY)}/ay</td>
+        <td style="text-align:center">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:50px">
+              <div style="height:100%;width:${barW}%;background:${budgetPct>10?'var(--red)':budgetPct>5?'var(--amber)':'var(--green)'};border-radius:3px"></div>
+            </div>
+            <span style="font-family:var(--mono);font-size:11px;min-width:28px">%${budgetPct}</span>
+          </div>
+        </td>
+        <td style="font-family:var(--mono);text-align:center;color:var(--text3);font-size:11px">${Object.keys(p.months).length} ay</td>
+      </tr>
+      <tr id="td-${myPi}" class="tuk-cat-${catName.replace(/\s/g,'_')}" style="display:none">
+        <td colspan="8" style="padding:0">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:rgba(124,90,245,.06)">
+              <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px 5px 48px;text-align:left">Ay</th>
+              <th colspan="2"></th>
+              <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Miktar</th>
+              <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Harcama</th>
+              <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:center">Alım Sayısı</th>
+              <th colspan="2"></th>
+            </tr></thead>
+            <tbody>${monthRows}</tbody>
+          </table>
+        </td>
       </tr>`;
     }).join('');
-    return`<tr class="tuk-row"
-        data-tukat="${p.cat||''}"
-        data-tukname="${p.displayName.toLowerCase()}"
-        data-tukqty="${p.totalQty}"
-        data-tukavgqty="${avgMonthQty}"
-        data-tuktry="${p.totalTRY}"
-        data-tukavgtry="${avgMonthTRY}"
-        data-tukbudget="${budgetPct}"
-        data-tukay="${Object.keys(p.months).length}"
-        style="cursor:pointer" onclick="toggleTuketimDetail('td-${pi}')"
-        onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
-      <td>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span id="td-arr-${pi}" style="color:var(--text3);font-size:10px;transition:transform .2s">▶</span>
-          <div>
-            <div style="font-weight:600">${p.displayName}</div>
-            ${p.displayBrand?`<div style="font-size:10px;color:var(--text3)">${p.displayBrand}</div>`:''}
+
+    // Aylık döküm satırları (kategori açıldığında görünür)
+    const catMonthRows=Object.entries(group.months).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk,mv])=>{
+      const [yr,mo]=mk.split('-');
+      const label=`${MN_TR[parseInt(mo)-1]} ${yr}`;
+      const monthBudgetPct=totalAllTRY>0?Math.round(mv.try/totalAllTRY*100):0;
+      const barW=Math.min(100,monthBudgetPct*5);
+      return`<tr class="tuk-catmonth-${catName.replace(/\s/g,'_')}" style="background:${catColor}08;display:none">
+        <td colspan="2" style="padding:5px 12px 5px 32px;font-size:11px;color:var(--text3);font-family:var(--mono)">${label}</td>
+        <td colspan="2" style="text-align:right;padding:5px 12px;font-family:var(--mono);font-size:11px;color:var(--text2)">${mv.qty>0?mv.qty.toLocaleString('tr-TR')+' adet':''}</td>
+        <td colspan="2" style="text-align:right;padding:5px 12px;font-family:var(--mono);font-size:12px;color:${catColor};font-weight:600">${fmtTRY2(mv.try)}</td>
+        <td colspan="2" style="padding:5px 12px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;min-width:60px">
+              <div style="height:100%;width:${barW}%;background:${catColor};border-radius:2px;opacity:.7"></div>
+            </div>
+            <span style="font-family:var(--mono);font-size:10px;color:${catColor};min-width:26px">%${monthBudgetPct}</span>
           </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return`
+    <tr class="tuk-cat-header" data-catid="${catId}" style="cursor:pointer;background:linear-gradient(90deg,${catColor}14,${catColor}06)" onclick="toggleTuketimCat('${catId}','${catName.replace(/\s/g,'_')}')">
+      <td colspan="2" style="padding:10px 12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="arr-${catId}" style="color:${catColor};font-size:11px;transition:transform .2s">▼</span>
+          <span style="width:8px;height:8px;border-radius:2px;background:${catColor};flex-shrink:0;display:inline-block"></span>
+          <span style="font-weight:600;font-size:13px;color:var(--text)">${catName}</span>
+          <span style="font-size:10px;color:var(--text3)">${group.products.length} ürün</span>
+          <span style="font-size:11px;font-family:var(--mono);font-weight:600;background:${catColor}20;color:${catColor};padding:2px 8px;border-radius:5px;margin-left:4px">%${catBudgetPct}</span>
         </div>
       </td>
-      <td>${p.cat?`<span class="tag" style="background:${catColor}18;color:${catColor}">${p.cat}</span>`:`<span style="color:var(--text3);font-size:10px">—</span>`}</td>
-      <td style="font-family:var(--mono);font-weight:600;text-align:right">${p.totalQty>0?p.totalQty.toLocaleString('tr-TR')+' '+(p.unit||'adet'):'—'}</td>
-      <td style="font-family:var(--mono);text-align:right;color:var(--text3)">${avgMonthQty>0?(+avgMonthQty.toFixed(1)).toLocaleString('tr-TR')+' '+(p.unit||'adet')+'/ay':'—'}</td>
-      <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${fmtTRY2(p.totalTRY)}</td>
-      <td style="font-family:var(--mono);text-align:right;color:var(--amber)">${fmtTRY2(avgMonthTRY)}/ay</td>
-      <td style="text-align:center">
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:60px">
-            <div style="height:100%;width:${barW}%;background:${budgetPct>10?'var(--red)':budgetPct>5?'var(--amber)':'var(--green)'};border-radius:3px;transition:width .4s"></div>
-          </div>
-          <span style="font-family:var(--mono);font-size:11px;font-weight:600;min-width:30px">%${budgetPct}</span>
-        </div>
+      <td colspan="2" style="padding:10px 12px;text-align:right">
+        <span style="font-size:10px;color:var(--text3)">Aylık Ort.</span>
+        <span style="font-family:var(--mono);font-weight:600;color:var(--amber);margin-left:6px">${fmtTRY2(catAvgTRY)}</span>
       </td>
-      <td style="font-family:var(--mono);text-align:center;color:var(--text3);font-size:11px">${Object.keys(p.months).length} ay</td>
+      <td colspan="4" style="padding:10px 12px;text-align:right">
+        <span style="font-size:10px;color:var(--text3)">Toplam</span>
+        <span style="font-family:var(--mono);font-weight:700;color:${catColor};font-size:13px;margin-left:6px">${fmtTRY2(group.totalTRY)}</span>
+      </td>
     </tr>
-    <tr id="td-${pi}" style="display:none">
-      <td colspan="8" style="padding:0">
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr style="background:rgba(124,90,245,.06)">
-            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px 5px 32px;text-align:left">Ay</th>
-            <th colspan="2"></th>
-            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Miktar</th>
-            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Harcama</th>
-            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:center">Alım Sayısı</th>
-            <th colspan="2"></th>
-          </tr></thead>
-          <tbody>${monthRows}</tbody>
-        </table>
-      </td>
-    </tr>`;
+    ${catMonthRows}
+    ${productRowsHtml}`;
   }).join('');
 
   return`
@@ -2699,59 +2761,75 @@ window.toggleTuketimDetail=function(id){
   row.style.display=open?'table-row':'none';
   if(arr) arr.style.transform=open?'rotate(90deg)':'';
 };
+window.toggleTuketimCat=function(catId, catCls){
+  const arr=document.getElementById('arr-'+catId);
+  const isOpen=arr&&arr.style.transform==='rotate(-90deg)';
+  // Toggle product rows
+  document.querySelectorAll('.tuk-cat-'+catCls).forEach(r=>{ r.style.display=isOpen?'':'none'; });
+  // Toggle category month rows
+  document.querySelectorAll('.tuk-catmonth-'+catCls).forEach(r=>{ r.style.display=isOpen?'':'none'; });
+  if(arr) arr.style.transform=isOpen?'':'rotate(-90deg)';
+};
 window.filterTuketimTable=function(){
   const q=(document.getElementById('tuk-search')?.value||'').toLowerCase().trim();
   const cat=(document.getElementById('tuk-cat-filter')?.value||'');
   const tbody=document.getElementById('tuk-tbody');
   if(!tbody) return;
-  let show=true;
-  [...tbody.children].forEach(row=>{
-    if(row.classList.contains('tuk-row')){
+  // Show/hide category header rows and their product rows
+  [...tbody.querySelectorAll('.tuk-cat-header')].forEach(hdr=>{
+    const catId=hdr.getAttribute('data-catid')||'';
+    const catCls=catId.replace('catg-','');
+    const prodRows=[...tbody.querySelectorAll('.tuk-row.tuk-cat-'+catCls)];
+    let anyVisible=false;
+    prodRows.forEach(row=>{
       const name=row.getAttribute('data-tukname')||'';
       const rowCat=row.getAttribute('data-tukat')||'';
-      show=(!q||name.includes(q))&&(!cat||rowCat===cat);
+      const show=(!q||name.includes(q))&&(!cat||rowCat===cat);
       row.style.display=show?'':'none';
-    } else {
-      row.style.display=show?row.style.display:'none';
-    }
+      // hide detail row too if product hidden
+      const detailId=row.querySelector('[id^="td-arr-"]')?.id?.replace('td-arr-','td-');
+      if(detailId){ const dr=document.getElementById(detailId); if(dr&&!show) dr.style.display='none'; }
+      if(show) anyVisible=true;
+    });
+    hdr.style.display=anyVisible?'':'none';
   });
 };
 const _tukSortState={col:'try',asc:false};
 window.sortTuketimByCol=function(col){
   const tbody=document.getElementById('tuk-tbody');
   if(!tbody) return;
-  // Toggle direction if same col, else default desc for numbers, asc for text
-  if(_tukSortState.col===col){
-    _tukSortState.asc=!_tukSortState.asc;
-  } else {
-    _tukSortState.col=col;
-    _tukSortState.asc=(col==='name'||col==='cat');
-  }
+  if(_tukSortState.col===col){ _tukSortState.asc=!_tukSortState.asc; }
+  else { _tukSortState.col=col; _tukSortState.asc=(col==='name'||col==='cat'); }
   const asc=_tukSortState.asc;
   const textCols=['name','cat'];
-  // Collect pairs of [mainRow, detailRow]
-  const pairs=[];
-  const children=[...tbody.children];
-  for(let i=0;i<children.length;i++){
-    if(children[i].classList.contains('tuk-row')){
-      pairs.push([children[i], children[i+1]||null]);
-    }
-  }
-  pairs.sort((a,b)=>{
-    const ra=a[0], rb=b[0];
-    if(textCols.includes(col)){
-      const va=ra.getAttribute('data-tuk'+col)||'';
-      const vb=rb.getAttribute('data-tuk'+col)||'';
-      return asc?va.localeCompare(vb,'tr'):vb.localeCompare(va,'tr');
-    } else {
-      const va=parseFloat(ra.getAttribute('data-tuk'+col))||0;
-      const vb=parseFloat(rb.getAttribute('data-tuk'+col))||0;
-      return asc?va-vb:vb-va;
-    }
-  });
-  pairs.forEach(([main,detail])=>{
-    tbody.appendChild(main);
-    if(detail) tbody.appendChild(detail);
+  // Sort product rows within each category group
+  [...tbody.querySelectorAll('.tuk-cat-header')].forEach(hdr=>{
+    const catId=hdr.getAttribute('data-catid')||'';
+    const catCls=catId.replace('catg-','');
+    const prodRows=[...tbody.querySelectorAll('.tuk-row.tuk-cat-'+catCls)];
+    // Collect [productRow, detailRow] pairs
+    const pairs=prodRows.map(r=>{
+      const arrId=r.querySelector('[id^="td-arr-"]')?.id;
+      const detailId=arrId?arrId.replace('td-arr-','td-'):null;
+      return[r, detailId?document.getElementById(detailId):null];
+    });
+    pairs.sort((a,b)=>{
+      if(textCols.includes(col)){
+        const va=a[0].getAttribute('data-tuk'+col)||'';
+        const vb=b[0].getAttribute('data-tuk'+col)||'';
+        return asc?va.localeCompare(vb,'tr'):vb.localeCompare(va,'tr');
+      } else {
+        const va=parseFloat(a[0].getAttribute('data-tuk'+col))||0;
+        const vb=parseFloat(b[0].getAttribute('data-tuk'+col))||0;
+        return asc?va-vb:vb-va;
+      }
+    });
+    // Re-insert after the category header
+    let insertAfter=hdr;
+    pairs.forEach(([main,detail])=>{
+      insertAfter.after(main); insertAfter=main;
+      if(detail){ insertAfter.after(detail); insertAfter=detail; }
+    });
   });
   // Update header indicators
   ['name','cat','qty','avgqty','try','avgtry','budget','ay'].forEach(c=>{
