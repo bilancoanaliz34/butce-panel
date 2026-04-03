@@ -2580,7 +2580,15 @@ function pageTuketim(){
         <td colspan="2"></td>
       </tr>`;
     }).join('');
-    return`<tr class="tuk-row" data-tukat="${p.cat||''}" data-tukname="${p.displayName.toLowerCase()}"
+    return`<tr class="tuk-row"
+        data-tukat="${p.cat||''}"
+        data-tukname="${p.displayName.toLowerCase()}"
+        data-tukqty="${p.totalQty}"
+        data-tukavgqty="${avgMonthQty}"
+        data-tuktry="${p.totalTRY}"
+        data-tukavgtry="${avgMonthTRY}"
+        data-tukbudget="${budgetPct}"
+        data-tukay="${Object.keys(p.months).length}"
         style="cursor:pointer" onclick="toggleTuketimDetail('td-${pi}')"
         onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
       <td>
@@ -2664,24 +2672,18 @@ function pageTuketim(){
         <option value="">Tüm Kategoriler</option>
         ${allCats.map(c=>`<option value="${c}">${c}</option>`).join('')}
       </select>
-      <select class="form-input" id="tuk-sort" style="width:160px;padding:6px 8px;font-size:12px" onchange="sortTuketimTable()">
-        <option value="try">Harcamaya Göre ↓</option>
-        <option value="qty">Miktara Göre ↓</option>
-        <option value="budget">Bütçe Payına Göre ↓</option>
-        <option value="name">İsme Göre A→Z</option>
-      </select>
       <button onclick="document.getElementById('tuk-search').value='';document.getElementById('tuk-cat-filter').value='';filterTuketimTable()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:var(--font)">Sıfırla</button>
     </div>
     <table class="data-table">
-      <thead><tr>
-        <th>Ürün</th>
-        <th>Kategori</th>
-        <th style="text-align:right">Toplam Miktar</th>
-        <th style="text-align:right">Aylık Ort. Miktar</th>
-        <th style="text-align:right">Toplam Harcama</th>
-        <th style="text-align:right">Aylık Ort. Harcama</th>
-        <th style="text-align:center">Bütçe Payı</th>
-        <th style="text-align:center">Alındığı Ay</th>
+      <thead><tr id="tuk-thead">
+        <th onclick="sortTuketimByCol('name')" style="cursor:pointer;user-select:none;white-space:nowrap">Ürün <span id="tuk-sort-name" style="color:var(--text3)">↕</span></th>
+        <th onclick="sortTuketimByCol('cat')" style="cursor:pointer;user-select:none;white-space:nowrap">Kategori <span id="tuk-sort-cat" style="color:var(--text3)">↕</span></th>
+        <th onclick="sortTuketimByCol('qty')" style="cursor:pointer;user-select:none;text-align:right;white-space:nowrap">Toplam Miktar <span id="tuk-sort-qty" style="color:var(--text3)">↕</span></th>
+        <th onclick="sortTuketimByCol('avgqty')" style="cursor:pointer;user-select:none;text-align:right;white-space:nowrap">Aylık Ort. Miktar <span id="tuk-sort-avgqty" style="color:var(--text3)">↕</span></th>
+        <th onclick="sortTuketimByCol('try')" style="cursor:pointer;user-select:none;text-align:right;white-space:nowrap">Toplam Harcama <span id="tuk-sort-try" style="color:var(--accent)">↓</span></th>
+        <th onclick="sortTuketimByCol('avgtry')" style="cursor:pointer;user-select:none;text-align:right;white-space:nowrap">Aylık Ort. Harcama <span id="tuk-sort-avgtry" style="color:var(--text3)">↕</span></th>
+        <th onclick="sortTuketimByCol('budget')" style="cursor:pointer;user-select:none;text-align:center;white-space:nowrap">Bütçe Payı <span id="tuk-sort-budget" style="color:var(--text3)">↕</span></th>
+        <th onclick="sortTuketimByCol('ay')" style="cursor:pointer;user-select:none;text-align:center;white-space:nowrap">Alındığı Ay <span id="tuk-sort-ay" style="color:var(--text3)">↕</span></th>
       </tr></thead>
       <tbody id="tuk-tbody">${rows}</tbody>
     </table>
@@ -2714,11 +2716,50 @@ window.filterTuketimTable=function(){
     }
   });
 };
-window.sortTuketimTable=function(){
-  const val=document.getElementById('tuk-sort')?.value||'try';
-  // Re-render sayfayı yeniden çağırarak yapılır basitçe
-  switchPage('tuketim',null);
-  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('tuketim'))n.classList.add('active');});
+const _tukSortState={col:'try',asc:false};
+window.sortTuketimByCol=function(col){
+  const tbody=document.getElementById('tuk-tbody');
+  if(!tbody) return;
+  // Toggle direction if same col, else default desc for numbers, asc for text
+  if(_tukSortState.col===col){
+    _tukSortState.asc=!_tukSortState.asc;
+  } else {
+    _tukSortState.col=col;
+    _tukSortState.asc=(col==='name'||col==='cat');
+  }
+  const asc=_tukSortState.asc;
+  const textCols=['name','cat'];
+  // Collect pairs of [mainRow, detailRow]
+  const pairs=[];
+  const children=[...tbody.children];
+  for(let i=0;i<children.length;i++){
+    if(children[i].classList.contains('tuk-row')){
+      pairs.push([children[i], children[i+1]||null]);
+    }
+  }
+  pairs.sort((a,b)=>{
+    const ra=a[0], rb=b[0];
+    if(textCols.includes(col)){
+      const va=ra.getAttribute('data-tuk'+col)||'';
+      const vb=rb.getAttribute('data-tuk'+col)||'';
+      return asc?va.localeCompare(vb,'tr'):vb.localeCompare(va,'tr');
+    } else {
+      const va=parseFloat(ra.getAttribute('data-tuk'+col))||0;
+      const vb=parseFloat(rb.getAttribute('data-tuk'+col))||0;
+      return asc?va-vb:vb-va;
+    }
+  });
+  pairs.forEach(([main,detail])=>{
+    tbody.appendChild(main);
+    if(detail) tbody.appendChild(detail);
+  });
+  // Update header indicators
+  ['name','cat','qty','avgqty','try','avgtry','budget','ay'].forEach(c=>{
+    const el=document.getElementById('tuk-sort-'+c);
+    if(!el) return;
+    if(c===col){ el.textContent=asc?' ↑':' ↓'; el.style.color='var(--accent)'; }
+    else { el.textContent=' ↕'; el.style.color='var(--text3)'; }
+  });
 };
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
