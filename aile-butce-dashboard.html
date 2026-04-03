@@ -2306,26 +2306,37 @@ function pageAnaliz(){
     const key=(name||brand).trim().toLowerCase();
     const displayName=(name||brand).trim();
     const displayBrand=brand&&name&&brand!==name?brand.trim():'';
-    const usdPerUnit = unitprice?(unitprice/(t.rate||FX)):(qty>0?(t.usd/qty):null);
-    const tryPerUnit = unitprice||((qty>0&&t.try)?Math.round(t.try/qty):null);
+
+    // Taksitli işlemlerde t.try = taksit başına tutar → orijinal toplam tutar gerekiyor
+    const instTotal = t.installment?.total||1;
+    const origTRY = t.installment ? (t.try||0)*instTotal : (t.try||0);
+    const origUSD = t.installment ? (t.installment.originalUSD||((t.usd||0)*instTotal)) : (t.usd||0);
+    // Miktar da taksit sayısına bölünmemeli — sadece 1. taksitte sayılsın
+    const isFirstInst = !t.installment || t.installment.current===1;
+    const effectiveQty = isFirstInst ? (qty||0) : 0;
+
+    // Birim fiyat: kullanıcı girdiyse onu kullan, yoksa orijinal toplam / miktar
+    const tryPerUnit = unitprice||(effectiveQty>0&&origTRY?origTRY/effectiveQty:null);
+    const usdPerUnit = unitprice?(unitprice/(t.rate||FX)):(effectiveQty>0&&origUSD?origUSD/effectiveQty:null);
+
     const cat=pcat||t.cat||'';
     if(!productMap[key]) productMap[key]={
       displayName, displayBrand, qty:0, totalUSD:0, prices:[],
       tryPrices:[], cat, count:0, history:[]
     };
-    // Kategori: ilk girilenle güncelleme — sonradan atananı koru
     if(pcat) productMap[key].cat=pcat;
-    if(qty&&qty>0){
-      productMap[key].qty += qty;
+    if(effectiveQty>0){
+      productMap[key].qty += effectiveQty;
       if(usdPerUnit) productMap[key].prices.push(usdPerUnit);
       if(tryPerUnit) productMap[key].tryPrices.push(tryPerUnit);
+      if(usdPerUnit) productMap[key].totalUSD += effectiveQty*usdPerUnit;
     }
-    if(usdPerUnit) productMap[key].totalUSD += (qty||1)*usdPerUnit;
-    productMap[key].count++;
-    productMap[key].history.push({
+    if(isFirstInst) productMap[key].count++;
+    if(isFirstInst) productMap[key].history.push({
       date:fmtDateFull(t), dateISO:t.dateISO||null,
-      qty, unit, unitprice:tryPerUnit,
-      usdPerUnit, totalTRY:t.try, member:t.member, desc:t.desc
+      qty:effectiveQty, unit, unitprice:tryPerUnit,
+      usdPerUnit, totalTRY:origTRY, member:t.member, desc:t.desc,
+      installment:t.installment?`${instTotal} taksit`:null
     });
   }
 
@@ -2362,7 +2373,7 @@ function pageAnaliz(){
         const historyRows=sortedHistory.map(h=>`
           <tr style="background:rgba(79,142,247,.04)">
             <td style="padding-left:28px;font-size:11px;color:var(--text3);font-family:var(--mono)">${h.date}</td>
-            <td colspan="3" style="font-size:11px;color:var(--text2)">${h.desc||''}${h.member?` · <span style="color:${mColor(h.member)}">${h.member}</span>`:''}</td>
+            <td colspan="3" style="font-size:11px;color:var(--text2)">${h.desc||''}${h.installment?` <span style="font-size:9px;background:#22d3ee18;color:var(--teal);padding:1px 5px;border-radius:3px">${h.installment}</span>`:''} ${h.member?`· <span style="color:${mColor(h.member)}">${h.member}</span>`:''}</td>
             <td style="font-family:var(--mono);font-size:11px;text-align:center;color:var(--text3)">${h.qty?h.qty+(h.unit?' '+h.unit:''):'—'}</td>
             <td style="font-family:var(--mono);font-size:12px;text-align:right;color:${h.unitprice?'var(--amber)':'var(--text3)'}">${fmtTRY2(h.unitprice)}</td>
             <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text3)">${h.usdPerUnit?fmtUSD(h.usdPerUnit,2):'—'}</td>
@@ -2483,28 +2494,38 @@ function pageTuketim(){
     const key=(name||brand).trim().toLowerCase();
     const displayName=(name||brand).trim();
     const displayBrand=brand&&name&&brand!==name?brand.trim():'';
-    const tryPerUnit=unitprice||((qty>0&&t.try)?t.try/qty:null);
+
+    // Taksitli: orijinal toplam tutar ve sadece 1. taksitte miktar say
+    const instTotal=t.installment?.total||1;
+    const origTRY=t.installment?(t.try||0)*instTotal:(t.try||0);
+    const isFirstInst=!t.installment||t.installment.current===1;
+    const effectiveQty=isFirstInst?(qty||0):0;
+    const tryPerUnit=unitprice||(effectiveQty>0&&origTRY?origTRY/effectiveQty:null);
+
     const cat=pcat||t.cat||'';
     if(!productMap[key]) productMap[key]={
       displayName,displayBrand,cat,unit:unit||'',
       totalQty:0,totalTRY:0,months:{},entries:[]
     };
     if(pcat) productMap[key].cat=pcat;
-    if(qty>0){
-      productMap[key].totalQty+=qty;
+    if(effectiveQty>0){
+      productMap[key].totalQty+=effectiveQty;
       const monthKey=t.dateISO?t.dateISO.slice(0,7):(()=>{
         const d=fmtDateFull(t); const p=d.split(' ');
         const mo=MN_TR.indexOf(p[1]); const yr=parseInt(p[2])||2026;
         return`${yr}-${String(mo+1).padStart(2,'0')}`;
       })();
       if(!productMap[key].months[monthKey]) productMap[key].months[monthKey]={qty:0,try:0,count:0};
-      productMap[key].months[monthKey].qty+=qty;
-      productMap[key].months[monthKey].try+=tryPerUnit?tryPerUnit*qty:(t.try||0);
+      productMap[key].months[monthKey].qty+=effectiveQty;
+      productMap[key].months[monthKey].try+=tryPerUnit?tryPerUnit*effectiveQty:origTRY;
       productMap[key].months[monthKey].count++;
     }
-    const itemTRY=unitprice&&qty?unitprice*qty:(t.try||0);
-    productMap[key].totalTRY+=itemTRY;
-    productMap[key].entries.push({date:fmtDateFull(t),dateISO:t.dateISO,qty,unit,tryPerUnit,totalTRY:itemTRY,member:t.member});
+    // Toplam harcama: orijinal tutarı sadece 1. taksitte ekle
+    if(isFirstInst){
+      const itemTRY=unitprice&&effectiveQty?unitprice*effectiveQty:origTRY;
+      productMap[key].totalTRY+=itemTRY;
+      productMap[key].entries.push({date:fmtDateFull(t),dateISO:t.dateISO,qty:effectiveQty,unit,tryPerUnit,totalTRY:itemTRY,member:t.member});
+    }
   }
   allTransactions.forEach(t=>{
     if(t.items&&t.items.length>0){
