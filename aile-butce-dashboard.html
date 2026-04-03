@@ -249,7 +249,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
 <!-- MODAL -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
-  <div class="modal" style="width:640px">
+  <div class="modal" style="width:860px;max-height:90vh">
     <div class="modal-title">Yeni Harcama Ekle</div>
 
     <!-- Fiş Ürünleri — EN ÜSTTE -->
@@ -258,7 +258,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         <label class="form-label" style="margin:0">🛒 Fiş Ürünleri</label>
         <button type="button" onclick="addProductRow()" style="background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--font)">+ Satır Ekle</button>
       </div>
-      <div style="display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
+      <div style="display:grid;grid-template-columns:2.5fr 2fr 1.5fr 1.3fr 0.8fr 0.8fr 28px;gap:5px;padding:0 2px;margin-bottom:3px">
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Ürün Adı</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Marka</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Kategori</span>
@@ -666,10 +666,34 @@ function pageOzet(){
   const bankUSD=totalBankTRY()/FX, invUSD=totalInvTRY()/FX, ccUSD=totalCCTRY()/FX;
   const totalVarlikUSD=bankUSD+invUSD;
   const netVarlikUSD=totalVarlikUSD-ccUSD;
-  const gelir=INCOME_USD[5], gider=ACTUAL_EXP_USD[5], tasarruf=gelir-gider;
-  const savRate=Math.round(tasarruf/gelir*100);
-  const alacakUSD=ALACAK_VERECEK.filter(a=>a.type==='alacak').reduce((s,a)=>s+a.usd,0);
-  const verecekUSD=ALACAK_VERECEK.filter(a=>a.type==='verecek').reduce((s,a)=>s+a.usd,0);
+
+  // Gerçek veriden: bu ay ve geçen ay için gelir/gider
+  const {incByMonth, expByMonth} = getActualByMonth();
+  // Bu anki ayı bul
+  const now = new Date();
+  const thisMonthIdx = MONTH_PERIOD.findIndex(m=>m.mo===now.getMonth()&&m.yr===now.getFullYear());
+  const prevMonthIdx = thisMonthIdx > 0 ? thisMonthIdx-1 : -1;
+
+  const thisIncTRY = thisMonthIdx>=0 ? incByMonth[thisMonthIdx] : 0;
+  const prevIncTRY = prevMonthIdx>=0 ? incByMonth[prevMonthIdx] : 0;
+  const thisExpTRY = thisMonthIdx>=0 ? expByMonth[thisMonthIdx] : 0;
+  const prevExpTRY = prevMonthIdx>=0 ? expByMonth[prevMonthIdx] : 0;
+
+  // Hiç gerçek veri yoksa plandan göster
+  const totalActInc = incByMonth.reduce((s,v)=>s+v,0);
+  const totalActExp = expByMonth.reduce((s,v)=>s+v,0);
+  const gelirTRY = totalActInc>0 ? (thisIncTRY||prevIncTRY) : PLAN_INC_TRY[5]||0;
+  const giderTRY = totalActExp>0 ? (thisExpTRY||prevExpTRY) : PLAN_EXP_TRY[5]||0;
+  const gelir = gelirTRY/FX;
+  const gider = giderTRY/FX;
+  const tasarruf = gelir-gider;
+  const savRate = gelir>0 ? Math.round(tasarruf/gelir*100) : 0;
+
+  const incChange = prevIncTRY>0 ? Math.round((thisIncTRY-prevIncTRY)/prevIncTRY*100) : 0;
+  const expChange = prevExpTRY>0 ? Math.round((thisExpTRY-prevExpTRY)/prevExpTRY*100) : 0;
+
+  const alacakUSD=ALACAK_VERECEK.filter(a=>a.type==='alacak'&&a.status!=='ödendi').reduce((s,a)=>s+a.usd,0);
+  const verecekUSD=ALACAK_VERECEK.filter(a=>a.type==='verecek'&&a.status!=='ödendi').reduce((s,a)=>s+a.usd,0);
 
   return`
   <!-- VARLIK BANNER -->
@@ -707,12 +731,12 @@ function pageOzet(){
     <div class="metric c-blue">
       <div class="m-label">Aylık Gelir</div>
       <div class="m-value">${fmtUSD(gelir)}</div>
-      <div class="m-change up">↑ %3.2 geçen ay</div>
+      <div class="m-change ${incChange>=0?'up':'down'}">${incChange>=0?'↑':'↓'} %${Math.abs(incChange)} geçen ay</div>
     </div>
     <div class="metric c-red">
       <div class="m-label">Aylık Gider</div>
       <div class="m-value">${fmtUSD(gider)}</div>
-      <div class="m-change down">↑ %7.9 geçen ay</div>
+      <div class="m-change ${expChange>0?'down':'up'}">${expChange>=0?'↑':'↓'} %${Math.abs(expChange)} geçen ay</div>
     </div>
     <div class="metric c-green">
       <div class="m-label">Net Tasarruf</div>
@@ -2039,7 +2063,10 @@ function initCharts(page){
         y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'₺'+Math.round(v/1000)+'K'}}}}});
 
     destroyChart('ozDonut');
-    new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:BUDGET_DATA.map(b=>b.actual),backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
+    const catActualTRY={};
+    allTransactions.forEach(t=>{ if(t.cat) catActualTRY[t.cat]=(catActualTRY[t.cat]||0)+(t.try||Math.round((t.usd||0)*(t.rate||FX))); });
+    const donutData=CATEGORIES.map(c=>Math.round((catActualTRY[c]||0)/FX));
+    new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:donutData,backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
 
     // ── Grafik 2: Net Varlık Pozisyonu ────────────────────────────────────────
     destroyChart('ozNetVarlik');
@@ -2104,11 +2131,22 @@ function initCharts(page){
     new Chart($('ozVarlik'),{type:'doughnut',data:{labels:['Banka','Yatırım'],datasets:[{data:[bankV,invV],backgroundColor:['#22d3ee99','#7c5af599'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
   }
   if(page==='butce'){
+    // Gerçek harcamaları kategoriye göre topla
+    const catActual={};
+    allTransactions.forEach(t=>{
+      if(t.cat) catActual[t.cat]=(catActual[t.cat]||0)+(t.try||Math.round((t.usd||0)*(t.rate||FX)));
+    });
+    // BUDGET_DATA'yı güncelle
+    BUDGET_DATA.forEach(b=>{ b.actual=Math.round((catActual[b.cat]||0)/FX); });
+
+    const liveExpByMonth=getActualByMonth().expByMonth;
+    const liveExpUSD=liveExpByMonth.map(v=>Math.round(v/FX));
+
     destroyChart('butceLine');
     new Chart($('butceLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
       {label:'Planlanan',data:PLAN_EXP_USD,borderColor:'#4f8ef760',borderDash:[6,4],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef760',borderWidth:1.5},
-      {label:'Gerçekleşen',data:ACTUAL_EXP_USD,borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v},min:1000,max:2600}}}});
+      {label:'Gerçekleşen',data:liveExpUSD,borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
     destroyChart('butceBar');
     new Chart($('butceBar'),{type:'bar',data:{labels:BUDGET_DATA.map(b=>b.cat),datasets:[
       {label:'Planlanan',data:BUDGET_DATA.map(b=>b.planned),backgroundColor:'#4f8ef730',borderRadius:3,barPercentage:.55,borderWidth:1,borderColor:'#4f8ef760'},
@@ -2116,31 +2154,39 @@ function initCharts(page){
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
   }
   if(page==='tahmin'){
-    const ALL_M=['Eki','Kas','Ara','Oca','Şub','Mar','Nis','May','Haz'];
-    const ALL_INC=[2800,2900,3100,3000,3100,3200,3250,3300,3350];
-    const ALL_PL=[1300,1310,1350,1310,1330,1344,1360,1370,1380];
-    const ALL_AC=[1980,2100,2350,2050,1980,2138,null,null,null];
-    const SAV=ALL_INC.map((v,i)=>v-(ALL_AC[i]??ALL_PL[i]));
+    const {incByMonth:liveInc2, expByMonth:liveExp2}=getActualByMonth();
+    const liveIncUSD2=liveInc2.map(v=>Math.round(v/FX));
+    const liveExpUSD2=liveExp2.map(v=>Math.round(v/FX));
+    const savRates=MONTHS_LABELS.map((_,i)=>{
+      const inc=liveIncUSD2[i]||PLAN_INC_TRY[i]/FX||0;
+      const exp=liveExpUSD2[i]||PLAN_EXP_TRY[i]/FX||0;
+      return inc>0?Math.round((inc-exp)/inc*100):0;
+    });
     destroyChart('tahminLine');
-    new Chart($('tahminLine'),{type:'line',data:{labels:ALL_M,datasets:[
-      {label:'Gelir',data:ALL_INC,borderColor:'#4f8ef7',tension:.4,pointRadius:ALL_M.map((_,i)=>3),pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#4f8ef7':'#4f8ef750'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}},
-      {label:'Gider',data:ALL_AC.map((v,i)=>v??ALL_PL[i]),borderColor:'#f87171',tension:.4,pointRadius:3,pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#f87171':'#f8717150'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}},
-      {label:'Tasarruf',data:SAV,borderColor:'#34d399',backgroundColor:'#34d39908',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#34d399':'#34d39950'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}},
+    new Chart($('tahminLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
+      {label:'Gelir',data:MONTHS_LABELS.map((_,i)=>liveIncUSD2[i]||null),borderColor:'#4f8ef7',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef7',borderWidth:2,spanGaps:false},
+      {label:'Gider',data:MONTHS_LABELS.map((_,i)=>liveExpUSD2[i]||null),borderColor:'#f87171',tension:.4,pointRadius:3,pointBackgroundColor:'#f87171',borderWidth:2,spanGaps:false},
+      {label:'Tasarruf',data:MONTHS_LABELS.map((_,i)=>{const inc=liveIncUSD2[i],exp=liveExpUSD2[i];return inc&&exp?(inc-exp):null;}),borderColor:'#34d399',backgroundColor:'#34d39908',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#34d399',borderWidth:2,spanGaps:false},
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
-    const rates=INCOME_USD.map((v,i)=>Math.round((INCOME_USD[i]-ACTUAL_EXP_USD[i])/v*100));
     destroyChart('savRate');
-    new Chart($('savRate'),{type:'bar',data:{labels:MONTHS_LABELS,datasets:[{data:rates,backgroundColor:rates.map(r=>r>=30?'#34d399bb':r>=20?'#fbbf24bb':'#f87171bb'),borderRadius:5,barPercentage:.65}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>v+'%'},min:0,max:45}}}});
+    new Chart($('savRate'),{type:'bar',data:{labels:MONTHS_LABELS,datasets:[{data:savRates,backgroundColor:savRates.map(r=>r>=30?'#34d399bb':r>=20?'#fbbf24bb':'#f87171bb'),borderRadius:5,barPercentage:.65}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>v+'%'},min:0}}}});
     destroyChart('cumChart');
-    let cum=0;const cumD=ALL_INC.map((v,i)=>{cum+=v-(ALL_AC[i]??ALL_PL[i]);return cum});
-    new Chart($('cumChart'),{type:'line',data:{labels:ALL_M,datasets:[{data:cumD,borderColor:'#22d3ee',backgroundColor:'#22d3ee10',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:ALL_M.map((_,i)=>i<6?'#22d3ee':'#22d3ee50'),borderWidth:2,segment:{borderDash:ctx=>ctx.p0DataIndex>=5?[4,3]:undefined}}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+    let cum3=0;
+    const cumD=MONTHS_LABELS.map((_,i)=>{
+      const inc=liveIncUSD2[i], exp=liveExpUSD2[i];
+      if(!inc&&!exp) return null;
+      cum3+=(inc||0)-(exp||0); return cum3;
+    });
+    new Chart($('cumChart'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[{data:cumD,borderColor:'#22d3ee',backgroundColor:'#22d3ee10',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#22d3ee',borderWidth:2,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
   }
   if(page==='bankalar'){
     destroyChart('bankDonut');
     new Chart($('bankDonut'),{type:'doughnut',data:{labels:BANKS.map(b=>b.name),datasets:[{data:BANKS.map(b=>b.balanceTRY),backgroundColor:BANKS.map(b=>b.color+'cc'),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
     destroyChart('cashflow');
+    const {incByMonth:cfInc, expByMonth:cfExp}=getActualByMonth();
     new Chart($('cashflow'),{type:'bar',data:{labels:MONTHS_LABELS,datasets:[
-      {label:'Giriş',data:INCOME_USD.map(v=>Math.round(v*FX/1000)),backgroundColor:'#34d39966',borderRadius:4,barPercentage:.6},
-      {label:'Çıkış',data:ACTUAL_EXP_USD.map(v=>-Math.round(v*FX/1000)),backgroundColor:'#f8717166',borderRadius:4,barPercentage:.6},
+      {label:'Giriş',data:cfInc.map(v=>Math.round(v/1000)),backgroundColor:'#34d39966',borderRadius:4,barPercentage:.6},
+      {label:'Çıkış',data:cfExp.map(v=>-Math.round(v/1000)),backgroundColor:'#f8717166',borderRadius:4,barPercentage:.6},
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>Math.abs(v)+'K₺'}}}}});
   }
   if(page==='yatirimlar'){
@@ -3236,7 +3282,7 @@ window.addEditProductRow=function(item){
   }
   const row=document.createElement('div');
   row.id=`eprow-${id}`;
-  row.style.cssText='display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;margin-bottom:4px;align-items:center';
+  row.style.cssText='display:grid;grid-template-columns:2.5fr 2fr 1.5fr 1.3fr 0.8fr 0.8fr 28px;gap:5px;margin-bottom:4px;align-items:center';
   row.innerHTML=`
     <input class="form-input" type="text" list="dl-prod-names" placeholder="Ürün adı" style="padding:6px 8px;font-size:12px" data-pfield="name" value="${(item?.name||'').replace(/"/g,'&quot;')}">
     <input class="form-input" type="text" list="dl-prod-brands" placeholder="Marka" style="padding:6px 8px;font-size:12px" data-pfield="brand" value="${(item?.brand||'').replace(/"/g,'&quot;')}">
