@@ -2359,8 +2359,8 @@ function pageAnaliz(){
             <td style="padding-left:28px;font-size:11px;color:var(--text3);font-family:var(--mono)">${h.date}</td>
             <td colspan="2" style="font-size:11px;color:var(--text2)">${h.desc||''}${h.member?` · <span style="color:${mColor(h.member)}">${h.member}</span>`:''}</td>
             <td style="font-family:var(--mono);font-size:11px;text-align:center;color:var(--text3)">${h.qty?h.qty+(h.unit?' '+h.unit:''):'—'}</td>
-            <td style="font-family:var(--mono);font-size:12px;text-align:right;color:${h.unitprice?'var(--amber)':'var(--text3)'}">${h.unitprice?fmtTRY(h.unitprice):'—'}</td>
-            <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text3)">${h.usdPerUnit?fmtUSD(h.usdPerUnit,3):'—'}</td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right;color:${h.unitprice?'var(--amber)':'var(--text3)'}">${h.unitprice?('₺'+(+h.unitprice).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
+            <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text3)">${h.usdPerUnit?fmtUSD(h.usdPerUnit,2):'—'}</td>
             <td colspan="2"></td>
           </tr>`).join('');
         return`<tr style="cursor:pointer" onclick="toggleProductHistory('ph-${pi}')" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
@@ -2376,9 +2376,9 @@ function pageAnaliz(){
           </td>
           <td style="font-family:var(--mono);font-weight:600;text-align:center">${p.qty>0?p.qty.toLocaleString('tr-TR'):'—'}</td>
           <td style="font-family:var(--mono);text-align:center;color:var(--text3)">${p.count} işlem</td>
-          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--green)">${min?fmtTRY(min):'—'}</td>
-          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--red)">${max?fmtTRY(max):'—'}</td>
-          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${avg?fmtTRY(Math.round(avg)):'—'}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--green)">${min?('₺'+(+min).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--red)">${max?('₺'+(+max).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${avg?('₺'+(+avg).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
           <td style="text-align:center">
             ${variance
               ? `<span style="font-size:10px;background:rgba(251,191,36,.15);color:var(--amber);padding:2px 7px;border-radius:4px">%${Math.round((max-min)/avg*100)} fark</span>`
