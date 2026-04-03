@@ -883,19 +883,26 @@ function pageKartlar(){
         <div style="font-size:12px;font-weight:600;letter-spacing:.04em;opacity:.8;margin-top:10px">${cc.bank}</div>
         <div style="font-size:14px;font-weight:700;margin-top:2px">${cc.label}</div>
         <div class="cc-number">${cc.number}</div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-end">
-          <div><div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Harcanan</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">
+          <div>
+            <div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Harcanan</div>
             <div style="font-size:14px;font-weight:600;font-family:var(--mono)">${fmtTRY(cc.spentTRY)}</div>
             <div style="font-size:10px;opacity:.65;font-family:var(--mono)">${fmtUSD(cc.spentTRY/FX,0)}</div>
           </div>
-          <div style="text-align:right"><div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Limit</div>
+          <div style="text-align:center">
+            <div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Kalan Limit</div>
+            <div style="font-size:16px;font-weight:700;font-family:var(--mono);color:${pct>80?'#fca5a5':pct>60?'#fde68a':'#6ee7b7'}">${fmtTRY(cc.limitTRY-realSpent)}</div>
+            <div style="font-size:10px;opacity:.75;font-family:var(--mono)">${fmtUSD((cc.limitTRY-realSpent)/FX,0)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Limit</div>
             <div style="font-size:12px;font-weight:500;font-family:var(--mono)">${fmtTRY(cc.limitTRY)}</div>
             <div style="font-size:10px;opacity:.65;font-family:var(--mono)">${fmtUSD(cc.limitTRY/FX,0)}</div>
           </div>
         </div>
-        <div class="cc-limit-bar"><div class="cc-limit-fill" style="width:${Math.min(pct,100)}%"></div></div>
-        <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9px;opacity:.6">
-          <span>%${pct} kullanıldı · Kalan: ${fmtTRY(cc.limitTRY-cc.spentTRY)}</span><span>${cc.owner}</span>
+        <div class="cc-limit-bar"><div class="cc-limit-fill" style="width:${Math.min(pct,100)}%;background:${pct>80?'#fca5a5':pct>60?'#fde68a':'rgba(255,255,255,.7)'}"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9px;opacity:.7">
+          <span>%${pct} kullanıldı</span><span>${cc.owner}</span>
         </div>
       </div>`;
     }).join('')}
@@ -1136,17 +1143,18 @@ function pageBankalar(){
   const total=totalBankTRY();
   return`
   <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
-    ${BANKS.map((b,i)=>`<div class="metric" style="border-left:3px solid ${b.color};background:${b.color}12;border-color:${b.color}40">
+    ${BANKS.map((b,i)=>`<div class="metric" style="border-left:3px solid ${b.color};background:${b.color}12;border-color:${b.color}40;cursor:pointer;transition:box-shadow .15s" onclick="showBankTxns(${i})" onmouseover="this.style.boxShadow='0 0 0 2px ${b.color}55'" onmouseout="this.style.boxShadow=''">
       <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
         <div class="m-label" style="margin-bottom:0">${b.name}</div>
-        <button onclick="openBankModal(${i})" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:0" title="Düzenle">✎</button>
+        <button onclick="event.stopPropagation();openBankModal(${i})" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:0" title="Düzenle">✎</button>
       </div>
       <div class="m-value" style="font-size:17px;color:${b.balanceTRY<0?'var(--red)':'inherit'}">${fmtTRY(b.balanceTRY)}</div>
       <div class="m-sub">${fmtUSD(b.balanceTRY/FX,0)} · ${b.type}${b.balanceTRY<0?' · <span style="color:var(--red)">⚠ Negatif bakiye</span>':''}</div>
       <div style="display:flex;gap:6px;margin-top:10px">
-        <button onclick="openMoneyMoveModal(${i},'ekle')" style="flex:1;background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);border-radius:7px;color:var(--green);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">+ Para Ekle</button>
-        <button onclick="openMoneyMoveModal(${i},'cıkar')" style="flex:1;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);border-radius:7px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">− Çıkar</button>
+        <button onclick="event.stopPropagation();openMoneyMoveModal(${i},'ekle')" style="flex:1;background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);border-radius:7px;color:var(--green);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">+ Para Ekle</button>
+        <button onclick="event.stopPropagation();openMoneyMoveModal(${i},'cıkar')" style="flex:1;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.25);border-radius:7px;color:var(--red);font-size:11px;padding:5px;cursor:pointer;font-family:var(--font)">− Çıkar</button>
       </div>
+      <div style="margin-top:8px;font-size:10px;color:${b.color};opacity:.8;text-align:center">işlemleri gör →</div>
     </div>`).join('')}
   </div>
 
@@ -1218,8 +1226,120 @@ function pageBankalar(){
         <div style="font-size:10px;color:var(--green)">${fmtUSD((total-totalCCTRY())/FX,0)}</div>
       </div>
     </div>
-  </div>`;
+  </div>
+
+  <!-- Hesap İşlemleri — tıklayınca dolar -->
+  <div id="bank-txn-panel" style="display:none"></div>`;
 }
+
+window.showBankTxns=function(bankIdx){
+  const b=BANKS[bankIdx];
+  if(!b) return;
+  const panel=document.getElementById('bank-txn-panel');
+  if(!panel) return;
+
+  // Aynı hesaba tekrar tıklanırsa kapat
+  if(panel.getAttribute('data-bank')===String(bankIdx)&&panel.style.display!=='none'){
+    panel.style.display='none';
+    panel.removeAttribute('data-bank');
+    return;
+  }
+  panel.setAttribute('data-bank',String(bankIdx));
+
+  // Bu hesaba ait harcamalar + gelirler + para hareketleri
+  const txns=allTransactions
+    .filter(t=>t.bankName===b.name)
+    .sort((a,z)=>parseEntryDate(z)-parseEntryDate(a));
+
+  const incomes=INCOME_RECORDS
+    .filter(r=>r.bankName===b.name)
+    .sort((a,z)=>{
+      const da=a.dateISO?new Date(a.dateISO):new Date('2026 '+a.date);
+      const dz=z.dateISO?new Date(z.dateISO):new Date('2026 '+z.date);
+      return dz-da;
+    });
+
+  const moves=(window.BANK_MOVEMENTS||[])
+    .filter(m=>m.bank===b.name)
+    .slice().reverse();
+
+  const txnRows=txns.map(t=>{
+    const tryAmt=t.try||Math.round((t.usd||0)*(t.rate||FX));
+    return`<tr>
+      <td style="color:var(--text3);font-family:var(--mono);font-size:11px;white-space:nowrap">${fmtDateFull(t)}</td>
+      <td><span style="font-size:9px;background:rgba(248,113,113,.12);color:var(--red);padding:2px 6px;border-radius:4px">Harcama</span></td>
+      <td style="font-weight:500">${t.desc||'—'}</td>
+      <td><span class="tag" style="background:${CAT_COLORS[t.cat]||'#888'}18;color:${CAT_COLORS[t.cat]||'#888'}">${t.cat||'—'}</span></td>
+      <td><div style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:18px;height:18px;font-size:8px;background:${mColor(t.member)}22;color:${mColor(t.member)}">${mInit(t.member)}</div>${t.member||'—'}</div></td>
+      <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--red)">−${fmtTRY(tryAmt)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3);text-align:right">${fmtUSD(t.usd,2)}</td>
+    </tr>`;
+  }).join('');
+
+  const incRows=incomes.map(r=>{
+    const tryAmt=r.try||Math.round((r.usd||0)*(r.rate||FX));
+    return`<tr>
+      <td style="color:var(--text3);font-family:var(--mono);font-size:11px;white-space:nowrap">${r.dateISO?fmtDateFull(r):(r.date||'—')}</td>
+      <td><span style="font-size:9px;background:rgba(52,211,153,.12);color:var(--green);padding:2px 6px;border-radius:4px">Gelir</span></td>
+      <td style="font-weight:500">${r.desc||'—'}</td>
+      <td><span class="tag">${r.cat||'—'}</span></td>
+      <td><div style="display:flex;align-items:center;gap:5px"><div class="avatar" style="width:18px;height:18px;font-size:8px;background:${mColor(r.member)}22;color:${mColor(r.member)}">${mInit(r.member)}</div>${r.member||'—'}</div></td>
+      <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--green)">+${fmtTRY(tryAmt)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3);text-align:right">${fmtUSD(r.usd,2)}</td>
+    </tr>`;
+  }).join('');
+
+  const moveRows=moves.map(m=>`<tr>
+    <td style="color:var(--text3);font-family:var(--mono);font-size:11px;white-space:nowrap">${m.date||'—'}</td>
+    <td><span style="font-size:9px;background:${m.type==='ekle'?'rgba(34,211,238,.12)':'rgba(251,191,36,.12)'};color:${m.type==='ekle'?'var(--teal)':'var(--amber)'};padding:2px 6px;border-radius:4px">${m.type==='ekle'?'Para Girişi':'Para Çıkışı'}</span></td>
+    <td style="font-weight:500" colspan="2">${m.desc||'—'}</td>
+    <td></td>
+    <td style="font-family:var(--mono);font-weight:600;text-align:right;color:${m.type==='ekle'?'var(--teal)':'var(--amber)'}">${m.type==='ekle'?'+':'−'}${fmtTRY(m.amountTRY)}</td>
+    <td></td>
+  </tr>`).join('');
+
+  const allRows=txnRows+incRows+moveRows;
+  const totalIn=incomes.reduce((s,r)=>s+(r.try||Math.round((r.usd||0)*(r.rate||FX))),0)
+    +(moves.filter(m=>m.type==='ekle').reduce((s,m)=>s+m.amountTRY,0));
+  const totalOut=txns.reduce((s,t)=>s+(t.try||Math.round((t.usd||0)*(t.rate||FX))),0)
+    +(moves.filter(m=>m.type!=='ekle').reduce((s,m)=>s+m.amountTRY,0));
+
+  panel.style.display='block';
+  panel.innerHTML=`
+  <div class="card" style="margin-top:14px;border-color:${b.color}33">
+    <div class="card-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="bank-logo" style="background:${b.color}22;color:${b.color}">${b.logo||b.name[0]}</div>
+        <div>
+          <div class="card-title">${b.name} — Tüm İşlemler</div>
+          <div class="card-sub">${txns.length} harcama · ${incomes.length} gelir · ${moves.length} para hareketi</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--text3)">Toplam Giriş</div>
+          <div style="font-family:var(--mono);font-weight:600;color:var(--green)">${fmtTRY(totalIn)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--text3)">Toplam Çıkış</div>
+          <div style="font-family:var(--mono);font-weight:600;color:var(--red)">${fmtTRY(totalOut)}</div>
+        </div>
+        <button onclick="document.getElementById('bank-txn-panel').style.display='none';document.getElementById('bank-txn-panel').removeAttribute('data-bank')" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:5px 10px;cursor:pointer;font-family:var(--font);font-size:12px">✕ Kapat</button>
+      </div>
+    </div>
+    ${allRows===''
+      ? `<div style="text-align:center;color:var(--text3);padding:30px;font-size:12px">Bu hesaba ait kayıtlı işlem bulunamadı.</div>`
+      : `<table class="data-table">
+          <thead><tr>
+            <th>Tarih</th><th>Tür</th><th>Açıklama</th><th>Kategori</th><th>Kişi</th>
+            <th style="text-align:right">₺ Tutar</th><th style="text-align:right">USD</th>
+          </tr></thead>
+          <tbody>${allRows}</tbody>
+        </table>`}
+  </div>`;
+  // Smooth scroll
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),50);
+};
 
 function pageYatirimlar(){
   const items=INVESTMENTS.items;
@@ -2912,6 +3032,27 @@ function getBillingPeriods(cc, fromDate, count=6){
   return periods;
 }
 
+// Geçmiş dönemler dahil tüm dönemleri döndür: pastCount geçmiş + futureCount gelecek
+function getAllBillingPeriods(cc, fromDate, pastCount=6, futureCount=6){
+  const base = fromDate ? new Date(fromDate) : new Date();
+  let yr=base.getFullYear(), mo=base.getMonth();
+  if(base.getDate()>=cc.cutDay){ mo++; if(mo>11){mo=0;yr++;} }
+  // Geçmiş dönemler (pastCount adet, eskiden yeniye)
+  const past=[];
+  for(let i=pastCount;i>=1;i--){
+    let m=mo-i, y=yr+Math.floor(m/12);
+    m=((m%12)+12)%12;
+    past.push({label:`${MN_TR[m]} ${y} (${cc.cutDay}. kesim)`, year:y, month:m, cutDay:cc.cutDay, past:true});
+  }
+  // Gelecek dönemler
+  const future=[];
+  for(let i=0;i<futureCount;i++){
+    let m=mo+i, y=yr+Math.floor(m/12); m=m%12;
+    future.push({label:`${MN_TR[m]} ${y} (${cc.cutDay}. kesim)`, year:y, month:m, cutDay:cc.cutDay, past:false});
+  }
+  return [...past,...future];
+}
+
 window.updatePeriodSelector=function(){
   const method=$('f-method')?.value;
   const cc=getCardByLabel(method);
@@ -2921,8 +3062,15 @@ window.updatePeriodSelector=function(){
   if(!cc){ wrap.style.display='none'; return; }
   wrap.style.display='block';
   const dateRaw=$('f-date').value;
-  const periods=getBillingPeriods(cc, dateRaw);
-  sel.innerHTML=periods.map((p,i)=>`<option value="${i}">${i===0?'Bu dönem — ':''}${p.label}</option>`).join('');
+  const periods=getAllBillingPeriods(cc, dateRaw, 6, 6);
+  // "Bu dönem" = ilk gelecek dönem (index pastCount=6)
+  sel.innerHTML=periods.map((p,i)=>{
+    const isCurrent=i===6;
+    const label=p.past
+      ? `◀ ${p.label}`
+      : (isCurrent ? `▶ Bu dönem — ${p.label}` : `${p.label}`);
+    return`<option value="${i}" ${isCurrent?'selected':''}>${label}</option>`;
+  }).join('');
   updateInstallmentPreview();
 };
 
@@ -2939,7 +3087,7 @@ window.updateInstallmentPreview=function(){
   if(!tryVal){prev.innerHTML='';return;}
 
   const selIdx=parseInt($('f-period')?.value)||0;
-  const startPeriods=getBillingPeriods(cc,dateRaw,24);
+  const startPeriods=getAllBillingPeriods(cc,dateRaw,6,24);
   const firstPeriod=startPeriods[selIdx];
   if(!firstPeriod){prev.innerHTML='';return;}
 
@@ -3205,7 +3353,7 @@ window.addTransaction=function(){
   const cc=getCardByLabel(method);
   const bank=getBankByLabel(method);
   const selPeriodIdx=parseInt($('f-period')?.value)||0;
-  const periods=cc?getBillingPeriods(cc,dateRaw,24):null;
+  const periods=cc?getAllBillingPeriods(cc,dateRaw,6,24):null;
   const firstPeriod=periods?periods[selPeriodIdx]:null;
 
   if(inst===1){
