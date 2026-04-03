@@ -251,9 +251,37 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="modal" style="width:640px">
     <div class="modal-title">Yeni Harcama Ekle</div>
+
+    <!-- Fiş Ürünleri — EN ÜSTTE -->
+    <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label class="form-label" style="margin:0">🛒 Fiş Ürünleri</label>
+        <button type="button" onclick="addProductRow()" style="background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--font)">+ Satır Ekle</button>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Ürün Adı</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Marka</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Kategori</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim Fiyat (₺)</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Miktar</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim</span>
+        <span></span>
+      </div>
+      <div id="f-product-rows"></div>
+      <!-- Alt toplam -->
+      <div id="f-items-total" style="display:none;margin-top:6px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;color:var(--text3)">Fiş Toplamı</span>
+        <span id="f-items-total-val" style="font-family:var(--mono);font-weight:700;color:var(--green);font-size:14px">₺0</span>
+      </div>
+    </div>
+
     <div class="form-group"><label class="form-label">Tarih</label><input class="form-input" type="date" id="f-date" value="2026-03-28"></div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Tutar (₺)</label>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Tutar (₺)</span>
+          <span style="font-size:10px;color:var(--text3);font-weight:400">Fiş girildiyse otomatik</span>
+        </label>
         <input class="form-input" type="number" id="f-try-in" placeholder="0,00" oninput="calcUSD()">
       </div>
       <div class="form-group"><label class="form-label">Kur (₺/$)</label>
@@ -302,24 +330,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <label class="form-label" style="margin-bottom:6px">İlk Ekstre Dönemi</label>
       <select class="form-input" id="f-period" onchange="updateInstallmentPreview()"></select>
       <div id="f-period-preview" style="margin-top:8px;font-size:11px;color:var(--teal);line-height:1.7"></div>
-    </div>
-    <!-- Çoklu Ürün Satırları -->
-    <div style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <label class="form-label" style="margin:0">🛒 Fiş Ürünleri <span style="font-size:10px;color:var(--text3);font-weight:400">(opsiyonel)</span></label>
-        <button type="button" onclick="addProductRow()" style="background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--font)">+ Satır Ekle</button>
-      </div>
-      <!-- Başlık -->
-      <div style="display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
-        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Ürün Adı</span>
-        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Marka</span>
-        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Kategori</span>
-        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim Fiyat (₺)</span>
-        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Miktar</span>
-        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim</span>
-        <span></span>
-      </div>
-      <div id="f-product-rows"></div>
     </div>
     <div id="f-card-info" style="display:none;background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.2);border-radius:8px;padding:10px 12px;margin-bottom:4px;font-size:11px;color:var(--accent)"></div>
     <div class="modal-footer">
@@ -3126,7 +3136,8 @@ window.openModal=()=>{
     CREDIT_CARDS.map(cc=>`<option value="kart:${cc.label}">💳 ${cc.bank} ${cc.label}</option>`).join('');
   const rateEl=$('f-rate'); if(rateEl) rateEl.value=FX;
   const dateEl=$('f-date'); if(dateEl) dateEl.value=new Date().toISOString().slice(0,10);
-  ['f-try-in','f-usd-disp','f-inst-amt','f-desc'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  ['f-try-in','f-usd-disp','f-inst-amt','f-desc'].forEach(id=>{const el=$(id);if(el){el.value='';el.style.background='';el.style.borderColor='';} });
+  const _tot=$('f-items-total');if(_tot)_tot.style.display='none';
   // Ürün satırlarını sıfırla
   const pr=$('f-product-rows');if(pr)pr.innerHTML='';
   addProductRow(); // varsayılan 1 boş satır
@@ -3260,6 +3271,30 @@ function getEditProductItems(){
   return items;
 }
 
+// Fiş ürünleri toplamını hesapla ve f-try-in'e yaz
+function recalcItemsTotal(){
+  const rows=$('f-product-rows')?.querySelectorAll('[id^="prow-"]')||[];
+  let total=0;
+  let hasAny=false;
+  rows.forEach(row=>{
+    const price=parseFloat(row.querySelector('[data-pfield="unitprice"]')?.value)||0;
+    const qty=parseFloat(row.querySelector('[data-pfield="qty"]')?.value)||1;
+    if(price>0){ total+=price*qty; hasAny=true; }
+  });
+  const totalEl=$('f-items-total');
+  const totalValEl=$('f-items-total-val');
+  if(totalEl){
+    totalEl.style.display=hasAny?'flex':'none';
+    if(totalValEl) totalValEl.textContent='₺'+total.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  if(hasAny){
+    const tryIn=$('f-try-in');
+    if(tryIn){ tryIn.value=total.toFixed(2); tryIn.style.background='rgba(52,211,153,.08)'; tryIn.style.borderColor='rgba(52,211,153,.3)'; }
+    calcUSD();
+  }
+}
+window.recalcItemsTotal=recalcItemsTotal;
+
 // ─── MULTI-PRODUCT ROW HELPERS ───────────────────────────────────────────────
 
 // Daha önce girilmiş tüm ürün adları ve markalarını topla
@@ -3303,8 +3338,8 @@ window.addProductRow=function(){
     <select class="form-input" style="padding:6px 4px;font-size:11px" data-pfield="pcat">
       ${['—','Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'].map(c=>`<option value="${c==='—'?'':c}">${c}</option>`).join('')}
     </select>
-    <input class="form-input" type="number" placeholder="0,00" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="unitprice">
-    <input class="form-input" type="number" placeholder="0" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="qty">
+    <input class="form-input" type="number" placeholder="0,00" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="unitprice" oninput="recalcItemsTotal()">
+    <input class="form-input" type="number" placeholder="0" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="qty" oninput="recalcItemsTotal()">
     <select class="form-input" style="padding:6px 4px;font-size:11px" data-pfield="unit">
       ${UNITS.map(u=>`<option value="${u==='adet'?'':u}">${u}</option>`).join('')}
     </select>
@@ -3314,7 +3349,7 @@ window.addProductRow=function(){
 };
 window.removeProductRow=function(id){
   const el=$(`prow-${id}`);
-  if(el&&el.parentNode&&el.parentNode.children.length>1) el.remove();
+  if(el&&el.parentNode&&el.parentNode.children.length>1){ el.remove(); recalcItemsTotal(); }
 };
 
 function getProductItems(){
