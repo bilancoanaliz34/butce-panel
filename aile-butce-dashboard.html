@@ -201,6 +201,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="3" r="2" fill="currentColor" opacity=".6"/></svg>
       Akıllı Analiz
     </div>
+    <div class="nav-item" onclick="switchPage('tuketim',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M3 13V7m4 6V4m4 9V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="3" cy="5" r="1.5" fill="currentColor" opacity=".6"/><circle cx="7" cy="2" r="1.5" fill="currentColor" opacity=".6"/><circle cx="11" cy="7" r="1.5" fill="currentColor" opacity=".6"/></svg>
+      Tüketim Analizi
+    </div>
     <div class="nav-item" onclick="switchPage('kisiler',this)">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M1 14c0-3 2-5 5-5s5 2 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="5" r="2" stroke="currentColor" stroke-width="1.2" opacity=".5"/></svg>
       Aile Üyeleri
@@ -316,9 +320,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         <button type="button" onclick="addProductRow()" style="background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--font)">+ Satır Ekle</button>
       </div>
       <!-- Başlık -->
-      <div style="display:grid;grid-template-columns:2fr 2fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
+      <div style="display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Ürün Adı</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Marka</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Kategori</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim Fiyat (₺)</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Miktar</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim</span>
@@ -1333,9 +1338,10 @@ window.openEditTransactionModal=function(idx){
         <label class="form-label" style="margin:0">🛒 Fiş Ürünleri</label>
         <button type="button" onclick="addEditProductRow()" style="background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--font)">+ Satır Ekle</button>
       </div>
-      <div style="display:grid;grid-template-columns:2fr 2fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
+      <div style="display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;padding:0 2px;margin-bottom:3px">
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Ürün Adı</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Marka</span>
+        <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Kategori</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim Fiyat (₺)</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Miktar</span>
         <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Birim</span>
@@ -2295,18 +2301,20 @@ function pageAnaliz(){
   // ── Ürün analizi ──────────────────────────────────────────────────────────
   const productMap = {};
 
-  function registerProductEntry(t, name, brand, unitprice, qty, unit){
+  function registerProductEntry(t, name, brand, pcat, unitprice, qty, unit){
     if(!name&&!brand) return;
     const key=(name||brand).trim().toLowerCase();
     const displayName=(name||brand).trim();
     const displayBrand=brand&&name&&brand!==name?brand.trim():'';
-    // Birim fiyat: girilen unitprice yoksa toplam/qty ile hesapla
     const usdPerUnit = unitprice?(unitprice/(t.rate||FX)):(qty>0?(t.usd/qty):null);
     const tryPerUnit = unitprice||((qty>0&&t.try)?Math.round(t.try/qty):null);
+    const cat=pcat||t.cat||'';
     if(!productMap[key]) productMap[key]={
       displayName, displayBrand, qty:0, totalUSD:0, prices:[],
-      tryPrices:[], cat:t.cat, count:0, history:[]
+      tryPrices:[], cat, count:0, history:[]
     };
+    // Kategori: ilk girilenle güncelleme — sonradan atananı koru
+    if(pcat) productMap[key].cat=pcat;
     if(qty&&qty>0){
       productMap[key].qty += qty;
       if(usdPerUnit) productMap[key].prices.push(usdPerUnit);
@@ -2315,8 +2323,7 @@ function pageAnaliz(){
     if(usdPerUnit) productMap[key].totalUSD += (qty||1)*usdPerUnit;
     productMap[key].count++;
     productMap[key].history.push({
-      date:fmtDateFull(t),
-      dateISO:t.dateISO||null,
+      date:fmtDateFull(t), dateISO:t.dateISO||null,
       qty, unit, unitprice:tryPerUnit,
       usdPerUnit, totalTRY:t.try, member:t.member, desc:t.desc
     });
@@ -2324,23 +2331,22 @@ function pageAnaliz(){
 
   allTransactions.forEach(t=>{
     if(t.items&&t.items.length>0){
-      // Yeni çoklu ürün formatı
       t.items.forEach(item=>{
-        registerProductEntry(t, item.name, item.brand, item.unitprice, item.qty, item.unit);
+        registerProductEntry(t, item.name, item.brand, item.pcat||'', item.unitprice, item.qty, item.unit);
       });
     } else if(t.brand&&t.qty&&t.qty>0){
-      // Eski tekli format geriye uyumluluk
-      registerProductEntry(t, t.brand, null, null, t.qty, t.unit);
+      registerProductEntry(t, t.brand, null, '', null, t.qty, t.unit);
     }
   });
 
-  const products = Object.values(productMap)
-    .filter(p=>p.count>=1)
-    .sort((a,b)=>b.qty-a.qty);
+  const allProducts = Object.values(productMap).filter(p=>p.count>=1).sort((a,b)=>a.displayName.localeCompare(b.displayName,'tr'));
+  const allCats=[...new Set(allProducts.map(p=>p.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr'));
 
-  const productRows = products.length===0
-    ? `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">
-        Henüz ürün girili harcama yok.<br>
+  const fmtTRY2=v=>v!=null?('₺'+(+v).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—';
+
+  const buildProductRows=(products)=>products.length===0
+    ? `<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">
+        Sonuç bulunamadı. Farklı filtre deneyin.<br>
         <span style="font-size:11px">Harcama eklerken <strong>Fiş Ürünleri</strong> bölümünden ürün/marka/birim fiyat girin.</span>
        </td></tr>`
     : products.map((p,pi)=>{
@@ -2348,7 +2354,6 @@ function pageAnaliz(){
         const max = p.tryPrices.length?Math.max(...p.tryPrices):null;
         const avg = p.tryPrices.length?(p.tryPrices.reduce((a,b)=>a+b,0)/p.tryPrices.length):null;
         const variance = min&&max&&(max-min>0);
-        // Tarih sıralı geçmiş
         const sortedHistory=[...p.history].sort((a,b)=>{
           const da=a.dateISO?new Date(a.dateISO):new Date('2026 '+(a.date||''));
           const db=b.dateISO?new Date(b.dateISO):new Date('2026 '+(b.date||''));
@@ -2357,28 +2362,31 @@ function pageAnaliz(){
         const historyRows=sortedHistory.map(h=>`
           <tr style="background:rgba(79,142,247,.04)">
             <td style="padding-left:28px;font-size:11px;color:var(--text3);font-family:var(--mono)">${h.date}</td>
-            <td colspan="2" style="font-size:11px;color:var(--text2)">${h.desc||''}${h.member?` · <span style="color:${mColor(h.member)}">${h.member}</span>`:''}</td>
+            <td colspan="3" style="font-size:11px;color:var(--text2)">${h.desc||''}${h.member?` · <span style="color:${mColor(h.member)}">${h.member}</span>`:''}</td>
             <td style="font-family:var(--mono);font-size:11px;text-align:center;color:var(--text3)">${h.qty?h.qty+(h.unit?' '+h.unit:''):'—'}</td>
-            <td style="font-family:var(--mono);font-size:12px;text-align:right;color:${h.unitprice?'var(--amber)':'var(--text3)'}">${h.unitprice?('₺'+(+h.unitprice).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right;color:${h.unitprice?'var(--amber)':'var(--text3)'}">${fmtTRY2(h.unitprice)}</td>
             <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text3)">${h.usdPerUnit?fmtUSD(h.usdPerUnit,2):'—'}</td>
             <td colspan="2"></td>
           </tr>`).join('');
-        return`<tr style="cursor:pointer" onclick="toggleProductHistory('ph-${pi}')" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
+        const catColor=CAT_COLORS[p.cat]||'#8b909e';
+        return`<tr class="prod-row" data-prodcat="${p.cat||''}" data-prodname="${p.displayName.toLowerCase()}" style="cursor:pointer" onclick="toggleProductHistory('ph-${pi}')" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
           <td>
             <div style="display:flex;align-items:center;gap:6px">
               <span id="ph-arr-${pi}" style="color:var(--text3);font-size:10px;transition:transform .2s">▶</span>
               <div>
                 <div style="font-weight:600">${p.displayName}</div>
                 ${p.displayBrand?`<div style="font-size:10px;color:var(--text3)">${p.displayBrand}</div>`:''}
-                <div style="font-size:10px;color:var(--text3)">${p.cat}</div>
               </div>
             </div>
           </td>
+          <td>
+            ${p.cat?`<span class="tag" style="background:${catColor}18;color:${catColor}">${p.cat}</span>`:`<span style="color:var(--text3);font-size:10px">—</span>`}
+          </td>
           <td style="font-family:var(--mono);font-weight:600;text-align:center">${p.qty>0?p.qty.toLocaleString('tr-TR'):'—'}</td>
           <td style="font-family:var(--mono);text-align:center;color:var(--text3)">${p.count} işlem</td>
-          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--green)">${min?('₺'+(+min).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
-          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--red)">${max?('₺'+(+max).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
-          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${avg?('₺'+(+avg).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—'}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--green)">${fmtTRY2(min)}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--red)">${fmtTRY2(max)}</td>
+          <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${fmtTRY2(avg)}</td>
           <td style="text-align:center">
             ${variance
               ? `<span style="font-size:10px;background:rgba(251,191,36,.15);color:var(--amber);padding:2px 7px;border-radius:4px">%${Math.round((max-min)/avg*100)} fark</span>`
@@ -2387,14 +2395,14 @@ function pageAnaliz(){
           <td style="text-align:center;color:var(--text3);font-size:10px">${sortedHistory[0]?.date||''}</td>
         </tr>
         <tr id="ph-${pi}" style="display:none">
-          <td colspan="8" style="padding:0">
+          <td colspan="9" style="padding:0">
             <table style="width:100%;border-collapse:collapse">
               <thead><tr style="background:rgba(79,142,247,.06)">
-                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:5px 10px 5px 28px;text-align:left">Tarih</th>
-                <th colspan="2" style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;text-align:left">Açıklama / Kişi</th>
-                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;text-align:center">Miktar</th>
-                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;text-align:right">Birim Fiyat (₺)</th>
-                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;text-align:right">Birim USD</th>
+                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px 5px 28px;text-align:left">Tarih</th>
+                <th colspan="3" style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:left">Açıklama / Kişi</th>
+                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:center">Miktar</th>
+                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Birim Fiyat (₺)</th>
+                <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Birim USD</th>
                 <th colspan="2"></th>
               </tr></thead>
               <tbody>${historyRows}</tbody>
@@ -2402,6 +2410,8 @@ function pageAnaliz(){
           </td>
         </tr>`;
       }).join('');
+
+  const productRows=buildProductRows(allProducts);
 
   return`
   <!-- Kart Öneri -->
@@ -2435,11 +2445,22 @@ function pageAnaliz(){
         <div class="card-title">🛒 Ürün & Fiyat Analizi</div>
         <div class="card-sub">Ürüne tıklayarak tarihsel fiyat geçmişini görün · Birim fiyatlar ₺ ve USD</div>
       </div>
-      <div style="font-size:11px;color:var(--text3);text-align:right">${products.length} ürün · ${allTransactions.filter(t=>(t.items&&t.items.length>0)||(t.brand&&t.qty>0)).length} işlem</div>
+      <div style="font-size:11px;color:var(--text3);text-align:right">${allProducts.length} ürün · ${allTransactions.filter(t=>(t.items&&t.items.length>0)||(t.brand&&t.qty>0)).length} işlem</div>
+    </div>
+    <!-- Filtre Çubuğu -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <input class="form-input" type="text" id="prod-search" placeholder="🔍 Ürün adı veya marka ara..." style="flex:1;min-width:160px;padding:6px 10px;font-size:12px"
+        oninput="filterProductTable()">
+      <select class="form-input" id="prod-cat-filter" style="width:150px;padding:6px 8px;font-size:12px" onchange="filterProductTable()">
+        <option value="">Tüm Kategoriler</option>
+        ${allCats.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <button onclick="document.getElementById('prod-search').value='';document.getElementById('prod-cat-filter').value='';filterProductTable()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:var(--font)">Sıfırla</button>
     </div>
     <table class="data-table">
       <thead><tr>
         <th>Ürün / Marka</th>
+        <th>Kategori</th>
         <th style="text-align:center">Toplam Miktar</th>
         <th style="text-align:center">İşlem</th>
         <th style="text-align:right">En Ucuz (₺)</th>
@@ -2448,10 +2469,236 @@ function pageAnaliz(){
         <th style="text-align:center">Fiyat Sapması</th>
         <th style="text-align:center">Son Alım</th>
       </tr></thead>
-      <tbody>${productRows}</tbody>
+      <tbody id="prod-tbody">${productRows}</tbody>
     </table>
   </div>`;
 }
+
+// ─── TÜKETİM ANALİZİ SAYFASI ─────────────────────────────────────────────────
+function pageTuketim(){
+  // Tüm ürünleri topla (aynı mantık pageAnaliz'den)
+  const productMap={};
+  function regItem(t, name, brand, pcat, unitprice, qty, unit){
+    if(!name&&!brand) return;
+    const key=(name||brand).trim().toLowerCase();
+    const displayName=(name||brand).trim();
+    const displayBrand=brand&&name&&brand!==name?brand.trim():'';
+    const tryPerUnit=unitprice||((qty>0&&t.try)?t.try/qty:null);
+    const cat=pcat||t.cat||'';
+    if(!productMap[key]) productMap[key]={
+      displayName,displayBrand,cat,unit:unit||'',
+      totalQty:0,totalTRY:0,months:{},entries:[]
+    };
+    if(pcat) productMap[key].cat=pcat;
+    if(qty>0){
+      productMap[key].totalQty+=qty;
+      const monthKey=t.dateISO?t.dateISO.slice(0,7):(()=>{
+        const d=fmtDateFull(t); const p=d.split(' ');
+        const mo=MN_TR.indexOf(p[1]); const yr=parseInt(p[2])||2026;
+        return`${yr}-${String(mo+1).padStart(2,'0')}`;
+      })();
+      if(!productMap[key].months[monthKey]) productMap[key].months[monthKey]={qty:0,try:0,count:0};
+      productMap[key].months[monthKey].qty+=qty;
+      productMap[key].months[monthKey].try+=tryPerUnit?tryPerUnit*qty:(t.try||0);
+      productMap[key].months[monthKey].count++;
+    }
+    const itemTRY=unitprice&&qty?unitprice*qty:(t.try||0);
+    productMap[key].totalTRY+=itemTRY;
+    productMap[key].entries.push({date:fmtDateFull(t),dateISO:t.dateISO,qty,unit,tryPerUnit,totalTRY:itemTRY,member:t.member});
+  }
+  allTransactions.forEach(t=>{
+    if(t.items&&t.items.length>0){
+      t.items.forEach(i=>regItem(t,i.name,i.brand,i.pcat||'',i.unitprice,i.qty,i.unit));
+    } else if(t.brand&&t.qty>0){
+      regItem(t,t.brand,null,'',null,t.qty,t.unit);
+    }
+  });
+
+  const products=Object.values(productMap).filter(p=>p.totalQty>0||p.totalTRY>0);
+  if(products.length===0){
+    return`<div class="card" style="text-align:center;padding:40px;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:12px">📦</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:6px">Henüz ürün verisi yok</div>
+      <div style="font-size:12px">Harcama eklerken <strong>Fiş Ürünleri</strong> bölümünden ürün/marka/birim fiyat girin.</div>
+    </div>`;
+  }
+
+  // Toplam harcama (bütçe payı hesabı için)
+  const totalAllTRY=allTransactions.reduce((s,t)=>s+(t.try||0),0)||1;
+  // Kaç ay var
+  const allMonthKeys=[...new Set(products.flatMap(p=>Object.keys(p.months)))].sort();
+  const monthCount=allMonthKeys.length||1;
+
+  // Sıralama: toplam harcamaya göre
+  products.sort((a,b)=>b.totalTRY-a.totalTRY);
+
+  const allCats=[...new Set(products.map(p=>p.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr'));
+  const fmtTRY2=v=>v!=null?('₺'+(+v).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})):'—';
+
+  // Özet metrik kartları
+  const topProd=products[0];
+  const totalProdTRY=products.reduce((s,p)=>s+p.totalTRY,0);
+  const budgetShare=Math.round(totalProdTRY/totalAllTRY*100);
+
+  const rows=products.map((p,pi)=>{
+    const avgMonthQty=p.totalQty/monthCount;
+    const avgMonthTRY=p.totalTRY/monthCount;
+    const budgetPct=Math.round(p.totalTRY/totalAllTRY*100);
+    const barW=Math.min(100,budgetPct*3); // scale for visual
+    const catColor=CAT_COLORS[p.cat]||'#8b909e';
+    // Ay detayları
+    const monthRows=Object.entries(p.months).sort((a,b)=>a[0].localeCompare(b[0])).map(([mk,mv])=>{
+      const [yr,mo]=mk.split('-');
+      const label=`${MN_TR[parseInt(mo)-1]} ${yr}`;
+      return`<tr style="background:rgba(124,90,245,.04)">
+        <td style="padding-left:32px;font-size:11px;color:var(--text3);font-family:var(--mono)">${label}</td>
+        <td colspan="2"></td>
+        <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--text2)">${mv.qty.toLocaleString('tr-TR')} ${p.unit||'adet'}</td>
+        <td style="font-family:var(--mono);font-size:11px;text-align:right;color:var(--amber)">${fmtTRY2(mv.try>0?mv.try:null)}</td>
+        <td style="font-size:10px;color:var(--text3);text-align:center">${mv.count} alım</td>
+        <td colspan="2"></td>
+      </tr>`;
+    }).join('');
+    return`<tr class="tuk-row" data-tukat="${p.cat||''}" data-tukname="${p.displayName.toLowerCase()}"
+        style="cursor:pointer" onclick="toggleTuketimDetail('td-${pi}')"
+        onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="td-arr-${pi}" style="color:var(--text3);font-size:10px;transition:transform .2s">▶</span>
+          <div>
+            <div style="font-weight:600">${p.displayName}</div>
+            ${p.displayBrand?`<div style="font-size:10px;color:var(--text3)">${p.displayBrand}</div>`:''}
+          </div>
+        </div>
+      </td>
+      <td>${p.cat?`<span class="tag" style="background:${catColor}18;color:${catColor}">${p.cat}</span>`:`<span style="color:var(--text3);font-size:10px">—</span>`}</td>
+      <td style="font-family:var(--mono);font-weight:600;text-align:right">${p.totalQty>0?p.totalQty.toLocaleString('tr-TR')+' '+(p.unit||'adet'):'—'}</td>
+      <td style="font-family:var(--mono);text-align:right;color:var(--text3)">${avgMonthQty>0?(+avgMonthQty.toFixed(1)).toLocaleString('tr-TR')+' '+(p.unit||'adet')+'/ay':'—'}</td>
+      <td style="font-family:var(--mono);font-weight:600;text-align:right;color:var(--accent)">${fmtTRY2(p.totalTRY)}</td>
+      <td style="font-family:var(--mono);text-align:right;color:var(--amber)">${fmtTRY2(avgMonthTRY)}/ay</td>
+      <td style="text-align:center">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:60px">
+            <div style="height:100%;width:${barW}%;background:${budgetPct>10?'var(--red)':budgetPct>5?'var(--amber)':'var(--green)'};border-radius:3px;transition:width .4s"></div>
+          </div>
+          <span style="font-family:var(--mono);font-size:11px;font-weight:600;min-width:30px">%${budgetPct}</span>
+        </div>
+      </td>
+      <td style="font-family:var(--mono);text-align:center;color:var(--text3);font-size:11px">${Object.keys(p.months).length} ay</td>
+    </tr>
+    <tr id="td-${pi}" style="display:none">
+      <td colspan="8" style="padding:0">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:rgba(124,90,245,.06)">
+            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px 5px 32px;text-align:left">Ay</th>
+            <th colspan="2"></th>
+            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Miktar</th>
+            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:right">Harcama</th>
+            <th style="font-size:9px;color:var(--text3);text-transform:uppercase;padding:5px 10px;text-align:center">Alım Sayısı</th>
+            <th colspan="2"></th>
+          </tr></thead>
+          <tbody>${monthRows}</tbody>
+        </table>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return`
+  <!-- Özet Metrikler -->
+  <div class="grid-4" style="margin-bottom:14px">
+    <div class="metric c-purple">
+      <div class="m-label">Takip Edilen Ürün</div>
+      <div class="m-value">${products.length}</div>
+      <div class="m-sub">${allCats.length} kategori</div>
+    </div>
+    <div class="metric c-amber">
+      <div class="m-label">Ürün Harcamaları (Toplam)</div>
+      <div class="m-value" style="font-size:15px">${fmtTRY2(totalProdTRY)}</div>
+      <div class="m-sub">Tüm harcamaların %${budgetShare}'i</div>
+    </div>
+    <div class="metric c-blue">
+      <div class="m-label">Aylık Ort. Ürün Gideri</div>
+      <div class="m-value" style="font-size:15px">${fmtTRY2(totalProdTRY/monthCount)}</div>
+      <div class="m-sub">${monthCount} aylık veri</div>
+    </div>
+    <div class="metric c-green">
+      <div class="m-label">En Çok Harcanan Ürün</div>
+      <div class="m-value" style="font-size:13px;line-height:1.3">${topProd?.displayName||'—'}</div>
+      <div class="m-sub">${topProd?fmtTRY2(topProd.totalTRY):''}</div>
+    </div>
+  </div>
+
+  <!-- Tüketim Tablosu -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">📦 Ürün Tüketim & Bütçe Payı</div>
+        <div class="card-sub">Ürüne tıklayarak aylık tüketim detayını görün</div>
+      </div>
+    </div>
+    <!-- Filtreler -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <input class="form-input" type="text" id="tuk-search" placeholder="🔍 Ürün ara..." style="flex:1;min-width:140px;padding:6px 10px;font-size:12px" oninput="filterTuketimTable()">
+      <select class="form-input" id="tuk-cat-filter" style="width:150px;padding:6px 8px;font-size:12px" onchange="filterTuketimTable()">
+        <option value="">Tüm Kategoriler</option>
+        ${allCats.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <select class="form-input" id="tuk-sort" style="width:160px;padding:6px 8px;font-size:12px" onchange="sortTuketimTable()">
+        <option value="try">Harcamaya Göre ↓</option>
+        <option value="qty">Miktara Göre ↓</option>
+        <option value="budget">Bütçe Payına Göre ↓</option>
+        <option value="name">İsme Göre A→Z</option>
+      </select>
+      <button onclick="document.getElementById('tuk-search').value='';document.getElementById('tuk-cat-filter').value='';filterTuketimTable()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:var(--font)">Sıfırla</button>
+    </div>
+    <table class="data-table">
+      <thead><tr>
+        <th>Ürün</th>
+        <th>Kategori</th>
+        <th style="text-align:right">Toplam Miktar</th>
+        <th style="text-align:right">Aylık Ort. Miktar</th>
+        <th style="text-align:right">Toplam Harcama</th>
+        <th style="text-align:right">Aylık Ort. Harcama</th>
+        <th style="text-align:center">Bütçe Payı</th>
+        <th style="text-align:center">Alındığı Ay</th>
+      </tr></thead>
+      <tbody id="tuk-tbody">${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+window.toggleTuketimDetail=function(id){
+  const row=document.getElementById(id);
+  const pi=id.replace('td-','');
+  const arr=document.getElementById('td-arr-'+pi);
+  if(!row) return;
+  const open=row.style.display==='none'||row.style.display==='';
+  row.style.display=open?'table-row':'none';
+  if(arr) arr.style.transform=open?'rotate(90deg)':'';
+};
+window.filterTuketimTable=function(){
+  const q=(document.getElementById('tuk-search')?.value||'').toLowerCase().trim();
+  const cat=(document.getElementById('tuk-cat-filter')?.value||'');
+  const tbody=document.getElementById('tuk-tbody');
+  if(!tbody) return;
+  let show=true;
+  [...tbody.children].forEach(row=>{
+    if(row.classList.contains('tuk-row')){
+      const name=row.getAttribute('data-tukname')||'';
+      const rowCat=row.getAttribute('data-tukat')||'';
+      show=(!q||name.includes(q))&&(!cat||rowCat===cat);
+      row.style.display=show?'':'none';
+    } else {
+      row.style.display=show?row.style.display:'none';
+    }
+  });
+};
+window.sortTuketimTable=function(){
+  const val=document.getElementById('tuk-sort')?.value||'try';
+  // Re-render sayfayı yeniden çağırarak yapılır basitçe
+  switchPage('tuketim',null);
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('tuketim'))n.classList.add('active');});
+};
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 window.toggleProductHistory=function(id){
@@ -2463,8 +2710,28 @@ window.toggleProductHistory=function(id){
   row.style.display=open?'table-row':'none';
   if(arr) arr.style.transform=open?'rotate(90deg)':'rotate(0deg)';
 };
-const PAGE_TITLES={ozet:'Genel Özet',planlanan:'Planlanan Bütçe',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',analiz:'Akıllı Analiz',kisiler:'Aile Üyeleri'};
-const PAGE_FNS={ozet:pageOzet,planlanan:pagePlanlanan,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,analiz:pageAnaliz,kisiler:pageKisiler};
+window.filterProductTable=function(){
+  const q=(document.getElementById('prod-search')?.value||'').toLowerCase().trim();
+  const cat=(document.getElementById('prod-cat-filter')?.value||'');
+  const tbody=document.getElementById('prod-tbody');
+  if(!tbody) return;
+  let show=true;
+  [...tbody.children].forEach(row=>{
+    if(row.classList.contains('prod-row')){
+      const name=row.getAttribute('data-prodname')||'';
+      const rowCat=row.getAttribute('data-prodcat')||'';
+      const matchQ=!q||name.includes(q);
+      const matchCat=!cat||rowCat===cat;
+      show=matchQ&&matchCat;
+      row.style.display=show?'':'none';
+    } else {
+      // history detail row — hide if parent is hidden
+      row.style.display=(!show)?'none':row.style.display;
+    }
+  });
+};
+const PAGE_TITLES={ozet:'Genel Özet',planlanan:'Planlanan Bütçe',butce:'Bütçe & Gerçekleşen',tahmin:'Tahmin & Trend',kartlar:'Kredi Kartları',bankalar:'Banka Hesapları',yatirimlar:'Yatırımlar',harcamalar:'Harcamalar',gelirler:'Gelirler',borclar:'Borç / Alacak',analiz:'Akıllı Analiz',tuketim:'Tüketim Analizi',kisiler:'Aile Üyeleri'};
+const PAGE_FNS={ozet:pageOzet,planlanan:pagePlanlanan,butce:pageButce,tahmin:pageTahmin,kartlar:pageKartlar,bankalar:pageBankalar,yatirimlar:pageYatirimlar,harcamalar:pageHarcamalar,gelirler:pageGelirler,borclar:pageBorclar,analiz:pageAnaliz,tuketim:pageTuketim,kisiler:pageKisiler};
 let currentPage='ozet';
 
 // Sıralama hafızası — sayfa yenilenince korunur
@@ -2647,12 +2914,26 @@ window.addEditProductRow=function(item){
   if(!container) return;
   const id=_editProdRowId++;
   const UNITS=['adet','kg','g','lt','ml','m','paket','kutu'];
+  const {names,brands}=getKnownProducts();
+  if(!document.getElementById('dl-prod-names')){
+    document.body.insertAdjacentHTML('beforeend',buildDatalistHTML(names,'dl-prod-names'));
+  } else {
+    document.getElementById('dl-prod-names').innerHTML=names.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+  }
+  if(!document.getElementById('dl-prod-brands')){
+    document.body.insertAdjacentHTML('beforeend',buildDatalistHTML(brands,'dl-prod-brands'));
+  } else {
+    document.getElementById('dl-prod-brands').innerHTML=brands.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+  }
   const row=document.createElement('div');
   row.id=`eprow-${id}`;
-  row.style.cssText='display:grid;grid-template-columns:2fr 2fr 1.2fr 1fr 1fr 28px;gap:4px;margin-bottom:4px;align-items:center';
+  row.style.cssText='display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;margin-bottom:4px;align-items:center';
   row.innerHTML=`
-    <input class="form-input" type="text" placeholder="Ürün adı" style="padding:6px 8px;font-size:12px" data-pfield="name" value="${(item?.name||'').replace(/"/g,'&quot;')}">
-    <input class="form-input" type="text" placeholder="Marka" style="padding:6px 8px;font-size:12px" data-pfield="brand" value="${(item?.brand||'').replace(/"/g,'&quot;')}">
+    <input class="form-input" type="text" list="dl-prod-names" placeholder="Ürün adı" style="padding:6px 8px;font-size:12px" data-pfield="name" value="${(item?.name||'').replace(/"/g,'&quot;')}">
+    <input class="form-input" type="text" list="dl-prod-brands" placeholder="Marka" style="padding:6px 8px;font-size:12px" data-pfield="brand" value="${(item?.brand||'').replace(/"/g,'&quot;')}">
+    <select class="form-input" style="padding:6px 4px;font-size:11px" data-pfield="pcat">
+      ${['—','Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'].map(c=>`<option value="${c==='—'?'':c}" ${(item?.pcat||'')===(c==='—'?'':c)?'selected':''}>${c}</option>`).join('')}
+    </select>
     <input class="form-input" type="number" placeholder="0,00" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="unitprice" value="${item?.unitprice||''}">
     <input class="form-input" type="number" placeholder="0" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="qty" value="${item?.qty||''}">
     <select class="form-input" style="padding:6px 4px;font-size:11px" data-pfield="unit">
@@ -2672,27 +2953,58 @@ function getEditProductItems(){
   rows.forEach(row=>{
     const name=row.querySelector('[data-pfield="name"]')?.value?.trim()||'';
     const brand=row.querySelector('[data-pfield="brand"]')?.value?.trim()||'';
+    const pcat=row.querySelector('[data-pfield="pcat"]')?.value||'';
     const unitprice=parseFloat(row.querySelector('[data-pfield="unitprice"]')?.value)||null;
     const qty=parseFloat(row.querySelector('[data-pfield="qty"]')?.value)||null;
     const unit=row.querySelector('[data-pfield="unit"]')?.value||'';
-    if(name||brand||qty) items.push({name,brand,unitprice,qty,unit});
+    if(name||brand||qty) items.push({name,brand,pcat,unitprice,qty,unit});
   });
   return items;
 }
 
 // ─── MULTI-PRODUCT ROW HELPERS ───────────────────────────────────────────────
+
+// Daha önce girilmiş tüm ürün adları ve markalarını topla
+function getKnownProducts(){
+  const names=new Set(), brands=new Set();
+  allTransactions.forEach(t=>{
+    if(t.items) t.items.forEach(i=>{ if(i.name) names.add(i.name.trim()); if(i.brand) brands.add(i.brand.trim()); });
+    if(t.brand) brands.add(t.brand.trim());
+  });
+  return{names:[...names].sort((a,b)=>a.localeCompare(b,'tr')), brands:[...brands].sort((a,b)=>a.localeCompare(b,'tr'))};
+}
+
+function buildDatalistHTML(items, id){
+  return`<datalist id="${id}">${items.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('')}</datalist>`;
+}
+
 let _prodRowId=0;
 window.addProductRow=function(){
   const container=$('f-product-rows');
   if(!container) return;
   const id=_prodRowId++;
   const UNITS=['adet','kg','g','lt','ml','m','paket','kutu'];
+  const {names,brands}=getKnownProducts();
+  // datalist'leri document'e ekle (tekrar ekleme önle)
+  if(!document.getElementById('dl-prod-names')){
+    document.body.insertAdjacentHTML('beforeend',buildDatalistHTML(names,'dl-prod-names'));
+  } else {
+    document.getElementById('dl-prod-names').innerHTML=names.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+  }
+  if(!document.getElementById('dl-prod-brands')){
+    document.body.insertAdjacentHTML('beforeend',buildDatalistHTML(brands,'dl-prod-brands'));
+  } else {
+    document.getElementById('dl-prod-brands').innerHTML=brands.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+  }
   const row=document.createElement('div');
   row.id=`prow-${id}`;
-  row.style.cssText='display:grid;grid-template-columns:2fr 2fr 1.2fr 1fr 1fr 28px;gap:4px;margin-bottom:4px;align-items:center';
+  row.style.cssText='display:grid;grid-template-columns:2fr 2fr 1.5fr 1.2fr 1fr 1fr 28px;gap:4px;margin-bottom:4px;align-items:center';
   row.innerHTML=`
-    <input class="form-input" type="text" placeholder="Ürün adı" style="padding:6px 8px;font-size:12px" data-pfield="name">
-    <input class="form-input" type="text" placeholder="Marka" style="padding:6px 8px;font-size:12px" data-pfield="brand">
+    <input class="form-input" type="text" list="dl-prod-names" placeholder="Ürün adı" style="padding:6px 8px;font-size:12px" data-pfield="name">
+    <input class="form-input" type="text" list="dl-prod-brands" placeholder="Marka" style="padding:6px 8px;font-size:12px" data-pfield="brand">
+    <select class="form-input" style="padding:6px 4px;font-size:11px" data-pfield="pcat">
+      ${['—','Kira','Market','Ulaşım','Eğlence','Faturalar','Sağlık','Eğitim','Giyim','Diğer'].map(c=>`<option value="${c==='—'?'':c}">${c}</option>`).join('')}
+    </select>
     <input class="form-input" type="number" placeholder="0,00" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="unitprice">
     <input class="form-input" type="number" placeholder="0" style="padding:6px 8px;font-size:12px;font-family:var(--mono)" data-pfield="qty">
     <select class="form-input" style="padding:6px 4px;font-size:11px" data-pfield="unit">
@@ -2713,10 +3025,11 @@ function getProductItems(){
   rows.forEach(row=>{
     const name=row.querySelector('[data-pfield="name"]')?.value?.trim()||'';
     const brand=row.querySelector('[data-pfield="brand"]')?.value?.trim()||'';
+    const pcat=row.querySelector('[data-pfield="pcat"]')?.value||'';
     const unitprice=parseFloat(row.querySelector('[data-pfield="unitprice"]')?.value)||null;
     const qty=parseFloat(row.querySelector('[data-pfield="qty"]')?.value)||null;
     const unit=row.querySelector('[data-pfield="unit"]')?.value||'';
-    if(name||brand||qty) items.push({name,brand,unitprice,qty,unit});
+    if(name||brand||qty) items.push({name,brand,pcat,unitprice,qty,unit});
   });
   return items;
 }
