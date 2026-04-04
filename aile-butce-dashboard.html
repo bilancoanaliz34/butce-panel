@@ -757,7 +757,7 @@ function pageOzet(){
 
   <div class="card" style="margin-bottom:14px">
     <div class="card-header">
-      <div><div class="card-title">Gelir & Gider — 12 Aylık Kümülatif</div><div class="card-sub">Planlanan vs Gerçekleşen · ₺ bazlı · Alacak/Verecek dahil</div></div>
+      <div><div class="card-title">Gelir & Gider — Kümülatif</div><div class="card-sub">Planlanan vs Gerçekleşen · ₺ bazlı · Alacak/Verecek dahil</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--text3);align-items:center">
         <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #34d399;margin-right:4px;vertical-align:middle"></span>Plan Gelir</span>
         <span><span style="display:inline-block;width:14px;height:3px;background:#34d399;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerç. Gelir</span>
@@ -766,62 +766,244 @@ function pageOzet(){
       </div>
     </div>
     <div class="chart-wrap" style="height:220px"><canvas id="ozBudgetLine"></canvas></div>
+
+    <!-- Aylık Gelir & Gider Bilanço Tablosu -->
+    ${(()=>{
+      const {incByMonth, expByMonth, alacakByMonth, verecekByMonth} = getActualByMonth();
+      const INC_CATS = PLAN_INC_CATS;
+      const EXP_CATS = PLAN_EXP_CATS;
+      // Sadece veri olan ayları göster (planlanan veya gerçekleşen > 0)
+      const visibleMonths = MONTH_PERIOD.map((m,i)=>({...m,i})).filter(({i})=>
+        (PLAN_INC_CATS.some(c=>c.monthly[i]>0)) ||
+        (PLAN_EXP_CATS.some(c=>c.monthly[i]>0)) ||
+        incByMonth[i]>0 || expByMonth[i]>0 || alacakByMonth[i]>0 || verecekByMonth[i]>0
+      ).slice(0,12); // max 12 ay göster
+
+      if(visibleMonths.length===0) return`<div style="text-align:center;color:var(--text3);padding:16px;font-size:11px">Henüz veri yok</div>`;
+
+      const thStyle='font-size:10px;color:var(--text3);font-weight:500;text-align:right;padding:6px 6px;white-space:nowrap;border-bottom:1px solid var(--border)';
+      const tdStyle='font-size:11px;font-family:var(--mono);text-align:right;padding:4px 6px;white-space:nowrap';
+      const labelStyle='font-size:11px;padding:4px 8px 4px 0;color:var(--text2);white-space:nowrap';
+      const subLabelStyle='font-size:10px;padding:3px 8px 3px 16px;color:var(--text3);white-space:nowrap';
+      const sepStyle='border-top:1px solid var(--border2)';
+
+      const fmtCell=(v,color='')=>v>0?`<span style="color:${color||'var(--text)'};font-weight:500">${fmtTRY(v)}</span>`:`<span style="color:var(--text3)">—</span>`;
+
+      return`<div style="margin-top:14px;border-top:1px solid var(--border);overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:600px">
+        <thead><tr>
+          <th style="font-size:10px;color:var(--text3);font-weight:500;padding:6px 8px 6px 0;text-align:left;border-bottom:1px solid var(--border)">Kalem</th>
+          ${visibleMonths.map(m=>`<th style="${thStyle}">${m.label}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          <!-- PLANLANAN GELİR -->
+          <tr style="background:rgba(52,211,153,.04)">
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:var(--green)">📈 Planlanan Gelir</td>
+            ${visibleMonths.map(({i})=>{
+              const v=PLAN_INC_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0);
+              return`<td style="${tdStyle}">${fmtCell(v,'var(--green)')}</td>`;
+            }).join('')}
+          </tr>
+          ${PLAN_INC_CATS.filter(c=>visibleMonths.some(({i})=>c.monthly[i]>0)).map(c=>`
+          <tr>
+            <td style="${subLabelStyle}">↳ ${c.cat}</td>
+            ${visibleMonths.map(({i})=>`<td style="${tdStyle};font-size:10px;color:var(--text3)">${c.monthly[i]>0?fmtTRY(c.monthly[i]):'—'}</td>`).join('')}
+          </tr>`).join('')}
+          <!-- GERÇ. GELİR -->
+          <tr style="background:rgba(52,211,153,.07)">
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:var(--green)">✅ Gerç. Gelir</td>
+            ${visibleMonths.map(({i})=>{ const v=incByMonth[i]||0; return`<td style="${tdStyle}">${fmtCell(v,'var(--green)')}</td>`; }).join('')}
+          </tr>
+          ${(()=>{
+            // Gelir kayıtlarını kategoriye göre aylara dağıt
+            const catMonths={};
+            INCOME_RECORDS.forEach(r=>{
+              if(!r.dateISO&&!r.date) return;
+              const d=r.dateISO?new Date(r.dateISO):parseEntryDate(r);
+              const idx=MONTH_PERIOD.findIndex(m=>m.mo===d.getMonth()&&m.yr===d.getFullYear());
+              if(idx<0) return;
+              const cat=r.cat||'Diğer';
+              if(!catMonths[cat]) catMonths[cat]=new Array(24).fill(0);
+              catMonths[cat][idx]+=(r.try||Math.round((r.usd||0)*(r.rate||FX)));
+            });
+            return Object.entries(catMonths).map(([cat,arr])=>`
+            <tr>
+              <td style="${subLabelStyle}">↳ ${cat}</td>
+              ${visibleMonths.map(({i})=>`<td style="${tdStyle};font-size:10px;color:var(--text3)">${arr[i]>0?fmtTRY(arr[i]):'—'}</td>`).join('')}
+            </tr>`).join('');
+          })()}
+          <!-- ALACAK -->
+          ${visibleMonths.some(({i})=>alacakByMonth[i]>0)?`
+          <tr>
+            <td style="padding:5px 8px 5px 0;font-size:11px;color:var(--teal)">+ Alacaklar</td>
+            ${visibleMonths.map(({i})=>`<td style="${tdStyle};color:var(--teal)">${alacakByMonth[i]>0?fmtTRY(alacakByMonth[i]):'—'}</td>`).join('')}
+          </tr>`:''}
+          <!-- AYIRICI -->
+          <tr><td colspan="${visibleMonths.length+1}" style="padding:4px 0"><hr style="border:none;border-top:1px solid var(--border2)"></td></tr>
+          <!-- PLANLANAN GİDER -->
+          <tr style="background:rgba(248,113,113,.04)">
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:var(--red)">📉 Planlanan Gider</td>
+            ${visibleMonths.map(({i})=>{
+              const v=PLAN_EXP_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0);
+              return`<td style="${tdStyle}">${fmtCell(v,'var(--red)')}</td>`;
+            }).join('')}
+          </tr>
+          ${PLAN_EXP_CATS.filter(c=>visibleMonths.some(({i})=>c.monthly[i]>0)).map(c=>`
+          <tr>
+            <td style="${subLabelStyle}">↳ ${c.cat}</td>
+            ${visibleMonths.map(({i})=>`<td style="${tdStyle};font-size:10px;color:var(--text3)">${c.monthly[i]>0?fmtTRY(c.monthly[i]):'—'}</td>`).join('')}
+          </tr>`).join('')}
+          <!-- GERÇ. GİDER -->
+          <tr style="background:rgba(248,113,113,.07)">
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:var(--red)">✅ Gerç. Gider</td>
+            ${visibleMonths.map(({i})=>{ const v=expByMonth[i]||0; return`<td style="${tdStyle}">${fmtCell(v,'var(--red)')}</td>`; }).join('')}
+          </tr>
+          ${(()=>{
+            const catMonths={};
+            allTransactions.forEach(t=>{
+              const d=t.dateISO?new Date(t.dateISO):parseEntryDate(t);
+              const idx=MONTH_PERIOD.findIndex(m=>m.mo===d.getMonth()&&m.yr===d.getFullYear());
+              if(idx<0) return;
+              const cat=t.cat||'Diğer';
+              if(!catMonths[cat]) catMonths[cat]=new Array(24).fill(0);
+              catMonths[cat][idx]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
+            });
+            return Object.entries(catMonths).sort((a,b)=>{
+              const ta=a[1].reduce((s,v)=>s+v,0), tb=b[1].reduce((s,v)=>s+v,0);
+              return tb-ta;
+            }).map(([cat,arr])=>`
+            <tr>
+              <td style="${subLabelStyle}">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:${CAT_COLORS[cat]||'#8b909e'};margin-right:5px;vertical-align:middle"></span>↳ ${cat}
+              </td>
+              ${visibleMonths.map(({i})=>`<td style="${tdStyle};font-size:10px;color:var(--text3)">${arr[i]>0?fmtTRY(arr[i]):'—'}</td>`).join('')}
+            </tr>`).join('');
+          })()}
+          <!-- VERECEk -->
+          ${visibleMonths.some(({i})=>verecekByMonth[i]>0)?`
+          <tr>
+            <td style="padding:5px 8px 5px 0;font-size:11px;color:var(--amber)">− Verecekler</td>
+            ${visibleMonths.map(({i})=>`<td style="${tdStyle};color:var(--amber)">${verecekByMonth[i]>0?fmtTRY(verecekByMonth[i]):'—'}</td>`).join('')}
+          </tr>`:''}
+          <!-- NET -->
+          <tr><td colspan="${visibleMonths.length+1}" style="padding:2px 0"><hr style="border:none;border-top:2px solid var(--border)"></td></tr>
+          <tr style="background:rgba(79,142,247,.06)">
+            <td style="padding:7px 8px 7px 0;font-size:12px;font-weight:700;color:var(--text)">= Net (Gelir − Gider)</td>
+            ${visibleMonths.map(({i})=>{
+              const net=(incByMonth[i]||0)+(alacakByMonth[i]||0)-(expByMonth[i]||0)-(verecekByMonth[i]||0);
+              const planNet=PLAN_INC_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0)-PLAN_EXP_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0);
+              const hasReal=incByMonth[i]||expByMonth[i];
+              const val=hasReal?net:planNet;
+              const color=val>0?'var(--green)':val<0?'var(--red)':'var(--text3)';
+              return`<td style="${tdStyle};font-weight:700;font-size:12px;color:${color}">${val!==0?fmtTRY(val):'—'}</td>`;
+            }).join('')}
+          </tr>
+        </tbody>
+      </table>
+      </div>`;
+    })()}
   </div>
 
   <div class="card" style="margin-bottom:14px">
     <div class="card-header">
-      <div><div class="card-title">Net Varlık Pozisyonu — 12 Aylık</div>
-        <div class="card-sub">Nakit + Yatırım + Gelirler + Planlanan Gelir + Alacaklar − Giderler − Planlanan Gider − Verecekler</div>
+      <div><div class="card-title">Net Varlık Pozisyonu — Kümülatif</div>
+        <div class="card-sub">Nakit + Yatırım + Gelirler − Giderler − Verecekler</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text3)">
         <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #3b82f6;margin-right:4px;vertical-align:middle"></span>Planlanan</span>
         <span><span style="display:inline-block;width:14px;height:3px;background:#a78bfa;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
-        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #8b909e;margin-right:4px;vertical-align:middle"></span>Başlangıç</span>
       </div>
     </div>
     <div class="chart-wrap" style="height:200px"><canvas id="ozNetVarlik"></canvas></div>
-  </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Aile Harcamaları</div></div>
-      ${MEMBERS.map(m=>{
-        const tot=allTransactions.filter(t=>t.member===m.name).reduce((s,t)=>s+t.usd,0);
-        const all=allTransactions.reduce((s,t)=>s+t.usd,0);
-        const pct=Math.round(tot/all*100)||0;
-        return`<div class="member-row">
-          <div class="avatar" style="background:${m.color}22;color:${m.color}">${m.initials}</div>
-          <div style="flex:1;padding:0 10px"><div style="font-size:12px;font-weight:500">${m.name}</div>
-            <div class="member-bar"><div class="member-fill" style="width:${pct}%;background:${m.color}"></div></div>
-          </div>
-          <div style="text-align:right"><div style="font-family:var(--mono);font-size:12px;color:${m.color}">${fmtUSD(tot)}</div>
-            <div style="font-size:9px;color:var(--text3)">%${pct}</div></div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Gider Dağılımı</div></div>
-      <div class="chart-wrap" style="height:140px"><canvas id="ozDonut"></canvas></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;margin-top:10px">
-        ${CATEGORIES.map(c=>`<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)"><span style="width:7px;height:7px;border-radius:1px;background:${CAT_COLORS[c]};flex-shrink:0"></span>${c}</div>`).join('')}
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Varlık Dağılımı</div></div>
-      <div class="chart-wrap" style="height:140px"><canvas id="ozVarlik"></canvas></div>
-      <div style="margin-top:10px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
-          <span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:1px;background:#22d3ee;display:inline-block"></span><span style="color:var(--text3)">Banka</span></span>
-          <span style="font-family:var(--mono)">${fmtUSD(bankUSD,0)}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
-          <span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:1px;background:#7c5af5;display:inline-block"></span><span style="color:var(--text3)">Yatırım</span></span>
-          <span style="font-family:var(--mono)">${fmtUSD(invUSD,0)}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0">
-          <span style="color:var(--text3)">Toplam</span>
-          <span style="font-family:var(--mono);font-weight:600;color:var(--teal)">${fmtUSD(totalVarlikUSD,0)}</span>
-        </div>
-      </div>
-    </div>
+
+    <!-- Aylık Net Varlık Bilanço Tablosu -->
+    ${(()=>{
+      const {incByMonth, expByMonth, alacakByMonth, verecekByMonth} = getActualByMonth();
+      const visibleMonths = MONTH_PERIOD.map((m,i)=>({...m,i})).filter(({i})=>
+        PLAN_INC_CATS.some(c=>c.monthly[i]>0) ||
+        PLAN_EXP_CATS.some(c=>c.monthly[i]>0) ||
+        incByMonth[i]>0 || expByMonth[i]>0
+      ).slice(0,12);
+
+      if(visibleMonths.length===0) return`<div style="text-align:center;color:var(--text3);padding:16px;font-size:11px">Henüz veri yok</div>`;
+
+      const thStyle='font-size:10px;color:var(--text3);font-weight:500;text-align:right;padding:6px 6px;white-space:nowrap;border-bottom:1px solid var(--border)';
+      const tdStyle='font-size:11px;font-family:var(--mono);text-align:right;padding:4px 6px;white-space:nowrap';
+      const subStyle='font-size:10px;padding:3px 8px 3px 16px;color:var(--text3)';
+      const baseWealth=totalBankTRY()+totalInvTRY();
+
+      // Kümülatif net varlık (planlanan ve gerçek)
+      let cumPlan=baseWealth, cumReal=baseWealth;
+      const planCum=[], realCum=[];
+      MONTH_PERIOD.forEach((_,i)=>{
+        const planInc=PLAN_INC_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0);
+        const planExp=PLAN_EXP_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0);
+        cumPlan+=planInc-planExp+alacakByMonth[i]-verecekByMonth[i];
+        planCum.push(cumPlan);
+        cumReal+=incByMonth[i]-expByMonth[i]+alacakByMonth[i]-verecekByMonth[i];
+        realCum.push(cumReal);
+      });
+
+      return`<div style="margin-top:14px;border-top:1px solid var(--border);overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:600px">
+        <thead><tr>
+          <th style="font-size:10px;color:var(--text3);font-weight:500;padding:6px 8px 6px 0;text-align:left;border-bottom:1px solid var(--border)">Kalem</th>
+          ${visibleMonths.map(m=>`<th style="${thStyle}">${m.label}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          <!-- BANKA -->
+          <tr>
+            <td style="padding:5px 8px 5px 0;font-size:11px;font-weight:600;color:var(--teal)">🏦 Banka Toplam</td>
+            ${visibleMonths.map(()=>`<td style="${tdStyle};color:var(--teal)">${fmtTRY(totalBankTRY())}</td>`).join('')}
+          </tr>
+          ${BANKS.map(b=>`<tr>
+            <td style="${subStyle}">↳ ${b.name}</td>
+            ${visibleMonths.map(()=>`<td style="${tdStyle};font-size:10px;color:var(--text3)">${fmtTRY(b.balanceTRY)}</td>`).join('')}
+          </tr>`).join('')}
+          <!-- YATIRIM -->
+          <tr>
+            <td style="padding:5px 8px 5px 0;font-size:11px;font-weight:600;color:var(--amber)">📊 Yatırım Toplam</td>
+            ${visibleMonths.map(()=>`<td style="${tdStyle};color:var(--amber)">${fmtTRY(totalInvTRY())}</td>`).join('')}
+          </tr>
+          <!-- AYIRICI -->
+          <tr><td colspan="${visibleMonths.length+1}" style="padding:2px 0"><hr style="border:none;border-top:1px solid var(--border2)"></td></tr>
+          <!-- PLANLANAN NET -->
+          <tr style="background:rgba(59,130,246,.05)">
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:#3b82f6">📋 Plan Net Varlık (kümülatif)</td>
+            ${visibleMonths.map(({i})=>{
+              const v=planCum[i];
+              const color=v>0?'var(--accent)':'var(--red)';
+              return`<td style="${tdStyle};color:${color};font-weight:600">${fmtTRY(v)}</td>`;
+            }).join('')}
+          </tr>
+          <!-- GERÇEKLEŞEN NET -->
+          <tr style="background:rgba(167,139,250,.07)">
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:#a78bfa">✅ Gerç. Net Varlık (kümülatif)</td>
+            ${visibleMonths.map(({i})=>{
+              const v=realCum[i];
+              const hasReal=incByMonth[i]||expByMonth[i]||(i===0);
+              if(!hasReal) return`<td style="${tdStyle};color:var(--text3)">—</td>`;
+              const color=v>0?'#a78bfa':'var(--red)';
+              return`<td style="${tdStyle};color:${color};font-weight:600">${fmtTRY(v)}</td>`;
+            }).join('')}
+          </tr>
+          <!-- SAPMA -->
+          <tr><td colspan="${visibleMonths.length+1}" style="padding:2px 0"><hr style="border:none;border-top:2px solid var(--border)"></td></tr>
+          <tr>
+            <td style="padding:6px 8px 6px 0;font-size:11px;font-weight:600;color:var(--text)">Δ Sapma (Gerç − Plan)</td>
+            ${visibleMonths.map(({i})=>{
+              const real=realCum[i], plan=planCum[i];
+              const hasReal=incByMonth[i]||expByMonth[i]||(i===0);
+              if(!hasReal) return`<td style="${tdStyle};color:var(--text3)">—</td>`;
+              const diff=real-plan;
+              const color=diff>=0?'var(--green)':'var(--red)';
+              return`<td style="${tdStyle};font-weight:600;color:${color}">${diff>0?'+':''}${fmtTRY(diff)}</td>`;
+            }).join('')}
+          </tr>
+        </tbody>
+      </table>
+      </div>`;
+    })()}
   </div>`;
 }
 
@@ -2062,11 +2244,11 @@ function initCharts(page){
       scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:9},maxRotation:45}},
         y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'₺'+Math.round(v/1000)+'K'}}}}});
 
-    destroyChart('ozDonut');
+    // removed: destroyChart('ozDonut');
     const catActualTRY={};
     allTransactions.forEach(t=>{ if(t.cat) catActualTRY[t.cat]=(catActualTRY[t.cat]||0)+(t.try||Math.round((t.usd||0)*(t.rate||FX))); });
     const donutData=CATEGORIES.map(c=>Math.round((catActualTRY[c]||0)/FX));
-    new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:donutData,backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
+    // removed: new Chart($('ozDonut'),{type:'doughnut',data:{labels:CATEGORIES,datasets:[{data:donutData,backgroundColor:CATEGORIES.map(c=>CAT_COLORS[c]),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}});
 
     // ── Grafik 2: Net Varlık Pozisyonu ────────────────────────────────────────
     destroyChart('ozNetVarlik');
@@ -2128,7 +2310,7 @@ function initCharts(page){
       }});
     }
     const bankV=totalBankTRY(),invV=totalInvTRY();
-    new Chart($('ozVarlik'),{type:'doughnut',data:{labels:['Banka','Yatırım'],datasets:[{data:[bankV,invV],backgroundColor:['#22d3ee99','#7c5af599'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
+    // removed: new Chart($('ozVarlik'),{type:'doughnut',data:{labels:['Banka','Yatırım'],datasets:[{data:[bankV,invV],backgroundColor:['#22d3ee99','#7c5af599'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
   }
   if(page==='butce'){
     // Gerçek harcamaları kategoriye göre topla
