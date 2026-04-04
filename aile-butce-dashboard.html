@@ -459,13 +459,19 @@ function getActualByMonth(){
   const verecekByMonth=new Array(24).fill(0);
 
   // Dönem içindeki ayı indeksle
-  function periodIdx(dateISO, dateStr, year){
+  function periodIdx(dateISO, dateStr, year, billingPeriod){
     let d;
     if(dateISO) d=new Date(dateISO);
     else {
       const parts=(dateStr||'').split(' ');
       const mo=MN_TR.indexOf(parts[1]);
-      const yr=year||new Date().getFullYear();
+      // yıl: önce year field, sonra billingPeriod'dan, sonra fallback
+      let yr=year;
+      if(!yr&&billingPeriod){
+        const bp=billingPeriod.split(' ');
+        yr=parseInt(bp[1])||null;
+      }
+      if(!yr) yr=new Date().getFullYear();
       d=new Date(yr, mo<0?0:mo, parseInt(parts[0])||1);
     }
     if(isNaN(d)) return -1;
@@ -473,15 +479,15 @@ function getActualByMonth(){
   }
 
   INCOME_RECORDS.forEach(r=>{
-    const idx=periodIdx(r.dateISO,r.date,r.year);
+    const idx=periodIdx(r.dateISO,r.date,r.year,r.billingPeriod);
     if(idx>=0) incByMonth[idx]+=(r.try||Math.round((r.usd||0)*(r.rate||FX)));
   });
   allTransactions.forEach(t=>{
-    const idx=periodIdx(t.dateISO,t.date,t.year);
+    const idx=periodIdx(t.dateISO,t.date,t.year,t.billingPeriod);
     if(idx>=0) expByMonth[idx]+=(t.try||Math.round((t.usd||0)*(t.rate||FX)));
   });
   ALACAK_VERECEK.filter(a=>a.status!=='ödendi').forEach(a=>{
-    const idx=periodIdx(a.dateISO,a.date,a.year);
+    const idx=periodIdx(a.dateISO,a.date,a.year,a.billingPeriod);
     if(idx<0) return;
     const tryAmt=a.try||Math.round((a.usd||0)*(a.rate||FX));
     if(a.type==='alacak') alacakByMonth[idx]+=tryAmt;
