@@ -854,6 +854,18 @@ function pageOzet(){
         </tbody>
       </table></div>`;
     })()}
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div><div class="card-title">Net Varlık Pozisyonu — Kümülatif</div>
+        <div class="card-sub">Nakit + Yatırım + Gelirler − Giderler − Verecekler</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text3)">
+        <span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed #3b82f6;margin-right:4px;vertical-align:middle"></span>Planlanan</span>
+        <span><span style="display:inline-block;width:14px;height:3px;background:#a78bfa;margin-right:4px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:200px"><canvas id="ozNetVarlik"></canvas></div>
+
     <!-- Aylık Net Varlık Bilanço Tablosu -->
     ${(()=>{
       const {incByMonth,expByMonth,alacakByMonth,verecekByMonth}=getActualByMonth();
