@@ -4291,6 +4291,33 @@ function applyState(s){
   if(s.BANK_MOVEMENTS) window.BANK_MOVEMENTS=s.BANK_MOVEMENTS;
   if(s.PAID_EKSTRES) PAID_EKSTRES=new Set(s.PAID_EKSTRES);
   if(s.PAID_EKSTRELER) window.PAID_EKSTRELER=s.PAID_EKSTRELER;
+
+  // Eski PAID_EKSTRES kayıtlarını PAID_EKSTRELER'e migrate et (hesap bilgisi olmadan)
+  if(!window.PAID_EKSTRELER) window.PAID_EKSTRELER=[];
+  PAID_EKSTRES.forEach(eid=>{
+    const already=window.PAID_EKSTRELER.some(p=>p.eid===eid);
+    if(!already){
+      // eid formatı: "cc_Label_Period" → cc_Axess_Nis_2026
+      const parts=eid.replace('cc_','').split('_');
+      const label=parts[0];
+      const period=parts.slice(1).join(' ');
+      // Tutarı hesapla
+      const cc=CREDIT_CARDS.find(c=>c.label===label);
+      let tryAmt=0;
+      if(cc){
+        const txns=allTransactions.filter(t=>{
+          const tcc=CREDIT_CARDS.find(c=>`kart:${c.label}`===t.card||c.label===t.card);
+          return tcc===cc && (t.billingPeriod||'Bilinmeyen').replace(' ','_')===parts.slice(1).join('_');
+        });
+        tryAmt=txns.reduce((s,t)=>s+(t.try||0),0);
+      }
+      window.PAID_EKSTRELER.push({
+        eid, label, period, tryAmt,
+        bank:'', date:'—', dateISO:'',
+        migrated:true
+      });
+    }
+  });
 }
 
 // ─── PERSISTENCE ─────────────────────────────────────────────────────────────
