@@ -1559,10 +1559,21 @@ function pageYatirimlar(){
   const items=INVESTMENTS.items;
   const types=['kripto','hisse','altin','fon','bes'];
 
+  const histSorted2=(window.INV_HISTORY||[]).slice().sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
+  const latestHist=histSorted2[histSorted2.length-1];
+
   const totalInvUSD=items.reduce((s,i)=>s+(i.investedUSD||i.invested/FX||0),0);
-  const totalCurUSD=items.reduce((s,i)=>s+(i.currentUSD||i.current/FX||0),0);
+  // Güncel değer: INV_HISTORY son kaydı varsa oradan topla, yoksa item'dan
+  const totalCurUSD=latestHist
+    ? types.reduce((s,t)=>s+(latestHist.values[t]||0),0)
+    : items.reduce((s,i)=>s+(i.currentUSD||i.current/FX||0),0);
   const totalKarUSD=totalCurUSD-totalInvUSD;
   const totalRate=totalInvUSD>0?((totalKarUSD/totalInvUSD)*100).toFixed(1):'0.0';
+
+  // INV_HISTORY'den en güncel ve bir önceki kayıt
+  const histSorted=(window.INV_HISTORY||[]).slice().sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
+  const lastHist=histSorted[histSorted.length-1];
+  const prevHist=histSorted[histSorted.length-2];
 
   return`
   <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
@@ -1585,22 +1596,23 @@ function pageYatirimlar(){
 
   <div class="card">
     <div class="card-header">
-      <div><div class="card-title">Portföy Özeti</div><div class="card-sub">Kategori bazlı · ${INVESTMENTS.lastUpdated}</div></div>
+      <div><div class="card-title">Portföy Özeti</div><div class="card-sub">Kategori bazlı · ${lastHist?lastHist.date:INVESTMENTS.lastUpdated}</div></div>
       <button class="btn btn-primary" onclick="openInvUpdateModal()">↻ Güncelle</button>
     </div>
     <table class="data-table">
-      <thead><tr><th>Kategori</th><th>Yatırılan $</th><th>Yatırılan ₺</th><th>Güncel $</th><th>Güncel ₺</th><th>Kâr $</th><th>Kâr Oranı</th><th>Son Ay Δ</th></tr></thead>
+      <thead><tr><th>Kategori</th><th>Yatırılan $</th><th>Yatırılan ₺</th><th>Güncel $</th><th>Güncel ₺</th><th>Kâr $</th><th>Kâr Oranı</th><th>Önceki Kayıt Δ</th></tr></thead>
       <tbody>
       ${types.map(type=>{
         const ti=items.filter(i=>i.type===type);
         const inv=ti.reduce((s,i)=>s+(i.investedUSD||i.invested/FX||0),0);
-        const cur=ti.reduce((s,i)=>s+(i.currentUSD||i.current/FX||0),0);
+        // Güncel: INV_HISTORY son kaydı varsa oradan, yoksa item'dan
+        const cur=lastHist&&lastHist.values[type]!=null ? lastHist.values[type] : ti.reduce((s,i)=>s+(i.currentUSD||i.current/FX||0),0);
         const kar=cur-inv;
         const rate=inv>0?((kar/inv)*100).toFixed(1):'0.0';
         const pos=kar>=0;
-        const lastM=ti.reduce((s,i)=>{const m=i.monthlyUSD||[];return s+(m[m.length-1]||0);},0);
-        const prevM=ti.reduce((s,i)=>{const m=i.monthlyUSD||[];return s+(m[m.length-2]||0);},0);
-        const delta=lastM&&prevM?lastM-prevM:0;
+        // Delta: son kayıt - bir önceki kayıt
+        const prev=prevHist&&prevHist.values[type]!=null ? prevHist.values[type] : null;
+        const delta=prev!=null ? cur-prev : null;
         return`<tr>
           <td><span class="badge" style="background:${INV_COLORS[type]}18;color:${INV_COLORS[type]};font-size:11px;padding:4px 10px">${INV_LABELS[type]}</span></td>
           <td style="font-family:var(--mono)">${fmtUSD(inv,0)}</td>
@@ -1609,7 +1621,7 @@ function pageYatirimlar(){
           <td style="font-family:var(--mono);color:var(--text3)">${fmtTRY(cur*FX)}</td>
           <td style="font-family:var(--mono);color:${pos?'var(--green)':'var(--red)'};font-weight:500">${pos?'+':''}${fmtUSD(kar,0)}</td>
           <td><span class="badge ${pos?'badge-green':'badge-red'}">${pos?'+':''}%${rate}</span></td>
-          <td style="font-family:var(--mono);color:${delta>=0?'var(--green)':'var(--red)'}">${delta?((delta>=0?'+':'')+fmtUSD(delta,0)):'—'}</td>
+          <td style="font-family:var(--mono);color:${delta==null?'var(--text3)':delta>=0?'var(--green)':'var(--red)'}">${delta==null?'—':(delta>=0?'+':'')+fmtUSD(delta,0)}</td>
         </tr>`;
       }).join('')}
       </tbody>
@@ -2363,41 +2375,58 @@ function initCharts(page){
     destroyChart('invMonthly');
     {
       const types=['kripto','hisse','altin','fon','bes'];
-      // Son 12 ay için ay etiketleri
+      const hist=(window.INV_HISTORY||[]).slice().sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
+
+      // Son 12 ay etiketleri — bugünden geriye
       const now=new Date();
       const labels=[];
+      const labelKeys=[];
       for(let i=11;i>=0;i--){
         let mo=now.getMonth()-i, yr=now.getFullYear()+Math.floor(mo/12);
         mo=((mo%12)+12)%12;
         labels.push(MN_TR[mo]+' \''+String(yr).slice(2));
+        labelKeys.push(yr*12+mo);
       }
+
       const datasets=types.map(type=>{
-        const typeItems=INVESTMENTS.items.filter(i=>i.type===type);
-        // Her ay için kategori toplamı
-        const data=Array.from({length:12},(_,mi)=>
-          typeItems.reduce((s,i)=>{
-            const m=i.monthlyUSD||[];
-            return s+(m[mi]||0);
-          },0)
-        );
-        // Eğer tüm değerler 0 ise gösterme
-        const hasData=data.some(v=>v>0);
+        const data=labelKeys.map(key=>{
+          // Bu aya ait en son INV_HISTORY kaydını bul
+          const match=[...hist].reverse().find(h=>{
+            const d=new Date(h.dateISO);
+            return d.getFullYear()*12+d.getMonth()===key && h.values[type]!=null;
+          });
+          return match?match.values[type]:null;
+        });
+        const hasData=data.some(v=>v!=null&&v>0);
+        if(!hasData) return null;
         return{
           label:INV_LABELS[type],
-          data:hasData?data:null,
+          data,
           borderColor:INV_COLORS[type],
           backgroundColor:INV_COLORS[type]+'18',
-          fill:false,tension:.4,pointRadius:4,
+          fill:false,tension:.4,pointRadius:5,
           pointBackgroundColor:INV_COLORS[type],borderWidth:2,
-          spanGaps:false
+          spanGaps:true
         };
-      }).filter(d=>d.data!==null);
-      new Chart($('invMonthly'),{type:'line',data:{labels,datasets},options:{
+      }).filter(Boolean);
+
+      // Eğer hiç INV_HISTORY yoksa monthlyUSD'den fallback
+      const finalDatasets=datasets.length>0?datasets:types.map(type=>{
+        const typeItems=INVESTMENTS.items.filter(i=>i.type===type);
+        const data=Array.from({length:12},(_,mi)=>
+          typeItems.reduce((s,i)=>{ const m=i.monthlyUSD||[]; return s+(m[mi]||0); },0)
+        );
+        const hasData=data.some(v=>v>0);
+        if(!hasData) return null;
+        return{label:INV_LABELS[type],data,borderColor:INV_COLORS[type],backgroundColor:INV_COLORS[type]+'18',fill:false,tension:.4,pointRadius:4,pointBackgroundColor:INV_COLORS[type],borderWidth:2,spanGaps:false};
+      }).filter(Boolean);
+
+      new Chart($('invMonthly'),{type:'line',data:{labels,datasets:finalDatasets},options:{
         responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtUSD(ctx.raw,0)}`}}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw!=null?`${ctx.dataset.label}: ${fmtUSD(ctx.raw,0)}`:`${ctx.dataset.label}: veri yok`}}},
         scales:{
           x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:9}}},
-          y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+Math.round(v).toLocaleString()}}
+          y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+Math.round(v).toLocaleString()},beginAtZero:false}
         }
       }});
     }
