@@ -4010,71 +4010,166 @@ window.saveMoneyMove = function(bankIdx, type){
 };
 
 // ─── INVESTMENT UPDATE MODAL ──────────────────────────────────────────────────
-window.openInvUpdateModal=function(){
-  const rows=INVESTMENTS.items.map((item,idx)=>{
-    const cUSD=item.currentUSD||0;
-    const iUSD=item.investedUSD||0;
-    return`<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="badge" style="background:${INV_COLORS[item.type]}18;color:${INV_COLORS[item.type]};font-size:10px">${INV_LABELS[item.type]}</span>
-        <span style="font-size:12px;font-weight:500">${item.name}</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">Güncel: <strong style="font-family:var(--mono)">${fmtUSD(cUSD,0)}</strong></span>
+// Güncelleme geçmişi: [{date, dateISO, values:{kripto,hisse,altin,fon,bes}, currency}]
+if(!window.INV_HISTORY) window.INV_HISTORY=[];
+
+window.openInvUpdateModal=function(editIdx){
+  const types=['kripto','hisse','altin','fon','bes'];
+
+  // Düzenleme mi yoksa yeni kayıt mı?
+  const editing=editIdx!=null;
+  const editEntry=editing?window.INV_HISTORY[editIdx]:null;
+
+  // Her kategori için güncel toplam USD
+  const catCur={};
+  types.forEach(t=>{
+    catCur[t]=INVESTMENTS.items.filter(i=>i.type===t).reduce((s,i)=>s+(i.currentUSD||i.current/FX||0),0);
+  });
+  const catInv={};
+  types.forEach(t=>{
+    catInv[t]=INVESTMENTS.items.filter(i=>i.type===t).reduce((s,i)=>s+(i.investedUSD||i.invested/FX||0),0);
+  });
+
+  const rows=types.map(t=>{
+    const cur=editing?(editEntry.values[t]||0):catCur[t];
+    const inv=catInv[t];
+    return`<div style="display:grid;grid-template-columns:120px 1fr 1fr 70px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div><span class="badge" style="background:${INV_COLORS[t]}18;color:${INV_COLORS[t]};font-size:11px">${INV_LABELS[t]}</span></div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:2px">Yatırılan</div>
+        <input class="form-input" type="number" id="inv-i-${t}" value="${inv.toFixed(0)}" style="font-size:12px;padding:5px 8px">
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:8px;align-items:end">
-        <div>
-          <label class="form-label" style="margin-bottom:3px">Yatırılan</label>
-          <input class="form-input" type="number" id="inv-i-${idx}" value="${iUSD.toFixed(0)}" placeholder="0" style="font-size:12px;padding:5px 8px">
-        </div>
-        <div>
-          <label class="form-label" style="margin-bottom:3px">Güncel Değer</label>
-          <input class="form-input" type="number" id="inv-c-${idx}" value="${cUSD.toFixed(0)}" placeholder="0" style="font-size:12px;padding:5px 8px">
-        </div>
-        <div>
-          <label class="form-label" style="margin-bottom:3px">Para Birimi</label>
-          <select class="form-input" id="inv-cur-${idx}" style="font-size:12px;padding:5px 8px">
-            <option value="usd" selected>USD $</option>
-            <option value="try">TL ₺</option>
-          </select>
-        </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:2px">Güncel Değer</div>
+        <input class="form-input" type="number" id="inv-c-${t}" value="${cur.toFixed(0)}" style="font-size:12px;padding:5px 8px">
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:2px">Birim</div>
+        <select class="form-input" id="inv-cur-${t}" style="font-size:12px;padding:5px 8px">
+          <option value="usd" selected>USD</option>
+          <option value="try">₺</option>
+        </select>
       </div>
     </div>`;
   }).join('');
 
-  const html=`<div class="modal" style="width:520px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">
-    <div class="modal-title">Yatırım Portföyü Güncelle</div>
-    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:11px;color:var(--amber)">
-      USD veya ₺ seçin — ₺ seçilirse kur (₺${FX}) ile USD'ye çevrilir. Güncel değer aylık geçmişe eklenir.
+  // Geçmiş güncellemeler
+  const hist=window.INV_HISTORY||[];
+  const histHTML=hist.length===0?
+    `<div style="text-align:center;color:var(--text3);padding:12px;font-size:11px">Henüz güncelleme geçmişi yok</div>`:
+    `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr>
+        <th style="text-align:left;padding:5px 6px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Tarih</th>
+        ${types.map(t=>`<th style="text-align:right;padding:5px 6px;color:${INV_COLORS[t]};font-weight:500;border-bottom:1px solid var(--border)">${INV_LABELS[t]}</th>`).join('')}
+        <th style="border-bottom:1px solid var(--border);width:50px"></th>
+      </tr></thead>
+      <tbody>
+        ${[...hist].reverse().map((h,ri)=>{
+          const realIdx=hist.length-1-ri;
+          return`<tr style="${realIdx===editIdx?'background:rgba(79,142,247,.1)':''}">
+            <td style="padding:5px 6px;font-family:var(--mono);color:var(--text2)">${h.date}</td>
+            ${types.map(t=>`<td style="padding:5px 6px;text-align:right;font-family:var(--mono)">${h.values[t]?fmtUSD(h.values[t],0):'—'}</td>`).join('')}
+            <td style="padding:5px 6px;text-align:right">
+              <button onclick="closeDynModal();openInvUpdateModal(${realIdx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 5px;border-radius:4px" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'" title="Düzenle">✎</button>
+              <button onclick="deleteInvHistory(${realIdx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 5px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'" title="Sil">✕</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+  const todayISO=new Date().toISOString().slice(0,10);
+
+  const html=`<div class="modal" style="width:640px;max-height:88vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <div class="modal-title">${editing?'Güncelleme Düzenle':'Yatırım Portföyü Güncelle'}</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">Güncelleme Tarihi</label>
+      <input class="form-input" type="date" id="inv-update-date" value="${editing?editEntry.dateISO:todayISO}" style="max-width:200px">
+    </div>
+    <div style="background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.15);border-radius:8px;padding:6px 10px;margin-bottom:12px;font-size:10px;color:var(--text3)">
+      ₺ seçilirse güncel kur (₺${FX}) ile USD'ye çevrilir · Güncel değer grafik geçmişine kaydedilir
     </div>
     ${rows}
-    <div class="modal-footer">
+    <div class="modal-footer" style="margin-top:12px">
       <button class="btn btn-ghost" onclick="closeDynModal()">İptal</button>
-      <button class="btn btn-primary" onclick="saveInvUpdate()">Kaydet</button>
+      ${editing?`<button class="btn btn-ghost" style="color:var(--red)" onclick="deleteInvHistory(${editIdx});closeDynModal()">Sil</button>`:''}
+      <button class="btn btn-primary" onclick="saveInvUpdate(${editing?editIdx:'null'})">
+        ${editing?'Güncelle':'Kaydet'}
+      </button>
+    </div>
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:10px">📋 Güncelleme Geçmişi</div>
+      ${histHTML}
     </div>
   </div>`;
   showDynModal(html);
 };
-window.saveInvUpdate=function(){
-  INVESTMENTS.items.forEach((item,idx)=>{
-    const iRaw=parseFloat($('inv-i-'+idx).value)||0;
-    const cRaw=parseFloat($('inv-c-'+idx).value)||0;
-    const cur=$('inv-cur-'+idx).value;
+
+window.saveInvUpdate=function(editIdx){
+  const types=['kripto','hisse','altin','fon','bes'];
+  const dateISO=$('inv-update-date').value||new Date().toISOString().slice(0,10);
+  const d=new Date(dateISO);
+  const dateLabel=`${d.getDate()} ${MN_TR[d.getMonth()]} ${d.getFullYear()}`;
+
+  const vals={};
+  types.forEach(t=>{
+    const iRaw=parseFloat($('inv-i-'+t).value)||0;
+    const cRaw=parseFloat($('inv-c-'+t).value)||0;
+    const cur=$('inv-cur-'+t).value;
     const iUSD=cur==='try'?iRaw/FX:iRaw;
     const cUSD=cur==='try'?cRaw/FX:cRaw;
-    if(iUSD>0) item.investedUSD=Math.round(iUSD*100)/100;
-    if(cUSD>0){
-      item.currentUSD=Math.round(cUSD*100)/100;
-      if(!item.monthlyUSD) item.monthlyUSD=[];
-      item.monthlyUSD.push(Math.round(cUSD));
-      if(item.monthlyUSD.length>12) item.monthlyUSD=item.monthlyUSD.slice(-12);
+    vals[t]=Math.round(cUSD*100)/100;
+
+    // İlgili enstrümanları güncelle (orantılı dağıt)
+    const items=INVESTMENTS.items.filter(i=>i.type===t);
+    if(iUSD>0){
+      const oldTot=items.reduce((s,i)=>s+(i.investedUSD||0),0);
+      const ratio=oldTot>0?iUSD/oldTot:1/items.length;
+      items.forEach(i=>{ i.investedUSD=Math.round((oldTot>0?i.investedUSD*iUSD/oldTot:iUSD/items.length)*100)/100; i.invested=Math.round(i.investedUSD*FX); });
     }
-    item.invested=Math.round(iUSD*FX);
-    item.current=Math.round(cUSD*FX);
+    if(cUSD>0){
+      const oldTot=items.reduce((s,i)=>s+(i.currentUSD||0),0);
+      items.forEach(i=>{ i.currentUSD=Math.round((oldTot>0?i.currentUSD*cUSD/oldTot:cUSD/items.length)*100)/100; i.current=Math.round(i.currentUSD*FX); });
+    }
   });
-  INVESTMENTS.lastUpdated=new Date().toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'})+', '+new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+
+  // Geçmişe ekle ya da güncelle
+  if(!window.INV_HISTORY) window.INV_HISTORY=[];
+  const entry={date:dateLabel, dateISO, values:vals};
+  if(editIdx!=null&&editIdx!=='null'){
+    window.INV_HISTORY[parseInt(editIdx)]=entry;
+  } else {
+    window.INV_HISTORY.push(entry);
+    // monthlyUSD'yi tarihe göre doğru aya yaz
+    const entryMo=d.getMonth(), entryYr=d.getFullYear();
+    const mIdx=MONTH_PERIOD.findIndex(m=>m.mo===entryMo&&m.yr===entryYr);
+    types.forEach(t=>{
+      INVESTMENTS.items.filter(i=>i.type===t).forEach(item=>{
+        if(!item.monthlyUSD) item.monthlyUSD=new Array(12).fill(0);
+        // monthlyUSD[11] = en son ay; indekse göre yerleştir
+        if(mIdx>=0){
+          const offset=MONTH_PERIOD.length-1-mIdx;
+          const arrIdx=11-offset;
+          if(arrIdx>=0&&arrIdx<12) item.monthlyUSD[arrIdx]=Math.round(item.currentUSD||0);
+        } else {
+          item.monthlyUSD.push(Math.round(item.currentUSD||0));
+          if(item.monthlyUSD.length>12) item.monthlyUSD=item.monthlyUSD.slice(-12);
+        }
+      });
+    });
+  }
+
+  INVESTMENTS.lastUpdated=dateLabel;
   closeDynModal();
   switchPage('yatirimlar',null);
   document.querySelectorAll('.nav-item').forEach(n=>{if(n.getAttribute('onclick')?.includes('yatirimlar'))n.classList.add('active');});
   saveAll();
+};
+
+window.deleteInvHistory=function(idx){
+  if(!confirm('Bu güncelleme kaydı silinsin mi?')) return;
+  window.INV_HISTORY.splice(idx,1);
+  openInvUpdateModal();
 };
 
 // ─── INCOME MODAL ─────────────────────────────────────────────────────────────
@@ -4335,6 +4430,7 @@ function collectState(){
     BANKS,
     CREDIT_CARDS: CREDIT_CARDS.map(cc=>({...cc})),
     INVESTMENTS,
+    INV_HISTORY: window.INV_HISTORY||[],
     ALACAK_VERECEK,
     avNextId,
     INCOME_RECORDS,
@@ -4362,12 +4458,12 @@ function applyState(s){
     INVESTMENTS.lastUpdated=s.INVESTMENTS.lastUpdated;
     INVESTMENTS.items=s.INVESTMENTS.items.map(i=>({
       ...i,
-      // Eski format migration: invested/current TL → USD
       investedUSD: i.investedUSD || (i.invested ? Math.round(i.invested/FX*100)/100 : 0),
       currentUSD:  i.currentUSD  || (i.current  ? Math.round(i.current/FX*100)/100  : 0),
       monthlyUSD:  i.monthlyUSD  || (i.monthly  ? i.monthly.map(()=>0) : new Array(12).fill(0)),
     }));
   }
+  if(s.INV_HISTORY) window.INV_HISTORY=s.INV_HISTORY;
   if(s.ALACAK_VERECEK) ALACAK_VERECEK.splice(0,ALACAK_VERECEK.length,...s.ALACAK_VERECEK);
   if(s.avNextId) avNextId=s.avNextId;
   if(s.INCOME_RECORDS){
