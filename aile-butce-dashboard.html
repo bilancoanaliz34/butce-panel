@@ -4142,23 +4142,31 @@ window.saveInvUpdate=function(editIdx){
 
   const vals={};
   types.forEach(t=>{
-    const iRaw=parseFloat($('inv-i-'+t).value)||0;
-    const cRaw=parseFloat($('inv-c-'+t).value)||0;
+    const iEl=$('inv-i-'+t), cEl=$('inv-c-'+t);
+    const iRaw=iEl&&iEl.value!==''?parseFloat(iEl.value):null;
+    const cRaw=cEl&&cEl.value!==''?parseFloat(cEl.value):null;
     const cur=$('inv-cur-'+t).value;
-    const iUSD=cur==='try'?iRaw/FX:iRaw;
-    const cUSD=cur==='try'?cRaw/FX:cRaw;
-    vals[t]=Math.round(cUSD*100)/100;
+    const iUSD=iRaw!=null?(cur==='try'?iRaw/FX:iRaw):null;
+    const cUSD=cRaw!=null?(cur==='try'?cRaw/FX:cRaw):null;
+    vals[t]=cUSD!=null?Math.round(cUSD*100)/100:null;
 
     // İlgili enstrümanları güncelle (orantılı dağıt)
     const items=INVESTMENTS.items.filter(i=>i.type===t);
-    if(iUSD>0){
+    if(iUSD!=null){
       const oldTot=items.reduce((s,i)=>s+(i.investedUSD||0),0);
-      const ratio=oldTot>0?iUSD/oldTot:1/items.length;
-      items.forEach(i=>{ i.investedUSD=Math.round((oldTot>0?i.investedUSD*iUSD/oldTot:iUSD/items.length)*100)/100; i.invested=Math.round(i.investedUSD*FX); });
+      if(iUSD===0){
+        items.forEach(i=>{ i.investedUSD=0; i.invested=0; });
+      } else {
+        items.forEach(i=>{ i.investedUSD=Math.round((oldTot>0?i.investedUSD*iUSD/oldTot:iUSD/items.length)*100)/100; i.invested=Math.round(i.investedUSD*FX); });
+      }
     }
-    if(cUSD>0){
+    if(cUSD!=null){
       const oldTot=items.reduce((s,i)=>s+(i.currentUSD||0),0);
-      items.forEach(i=>{ i.currentUSD=Math.round((oldTot>0?i.currentUSD*cUSD/oldTot:cUSD/items.length)*100)/100; i.current=Math.round(i.currentUSD*FX); });
+      if(cUSD===0){
+        items.forEach(i=>{ i.currentUSD=0; i.current=0; });
+      } else {
+        items.forEach(i=>{ i.currentUSD=Math.round((oldTot>0?i.currentUSD*cUSD/oldTot:cUSD/items.length)*100)/100; i.current=Math.round(i.currentUSD*FX); });
+      }
     }
   });
 
