@@ -4574,9 +4574,16 @@ function updateCloudBtn(){
   const lbl=$('cloudBtnLabel');
   if(!lbl) return;
   const cfg=getGistCfg();
-  lbl.textContent = cfg?.gistId ? '✓ GitHub' : 'GitHub Gist';
-  lbl.parentElement.style.color = cfg?.gistId ? 'var(--green)' : 'var(--text3)';
-  lbl.parentElement.style.borderColor = cfg?.gistId ? 'rgba(52,211,153,.4)' : '';
+  const hasAuthErr=window._lastGistError?.match(/401|403/);
+  if(hasAuthErr){
+    lbl.textContent='⚠ Token Yenile';
+    lbl.parentElement.style.color='var(--amber)';
+    lbl.parentElement.style.borderColor='rgba(251,191,36,.4)';
+  } else {
+    lbl.textContent = cfg?.gistId ? '✓ GitHub' : 'GitHub Gist';
+    lbl.parentElement.style.color = cfg?.gistId ? 'var(--green)' : 'var(--text3)';
+    lbl.parentElement.style.borderColor = cfg?.gistId ? 'rgba(52,211,153,.4)' : '';
+  }
 }
 
 // ── GitHub Gist API ───────────────────────────────────────────────────────────
@@ -4587,19 +4594,36 @@ async function gistSave(){
   const cfg=getGistCfg();
   if(!cfg?.token) return false;
   const content=JSON.stringify(collectState(),null,2);
+  const sizeKB=Math.round(content.length/1024);
   const headers={'Content-Type':'application/json','Authorization':`token ${cfg.token}`,'Accept':'application/vnd.github+json'};
   const body=JSON.stringify({description:'Bütçe Paneli Verisi',public:false,files:{[GIST_FILENAME]:{content}}});
   try{
     let res;
     if(cfg.gistId) res=await fetch(`${GIST_API}/${cfg.gistId}`,{method:'PATCH',headers,body});
     else           res=await fetch(GIST_API,{method:'POST',headers,body});
+    if(res.status===401||res.status===403){
+      window._lastGistError=`${res.status} — Token geçersiz veya süresi dolmuş`;
+      // Sessizce başarısız — sadece küçük uyarı, çalışmayı kesme
+      showSaveStatus(`💾 Kaydedildi (GitHub: token yenilenmeli)`, 'var(--amber)');
+      return false;
+    }
+    if(res.status===422){
+      window._lastGistError=`422 — Veri çok büyük (${sizeKB}KB)`;
+      showSaveStatus(`💾 Kaydedildi (GitHub: ${sizeKB}KB — çok büyük)`, 'var(--amber)');
+      return false;
+    }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const data=await res.json();
     if(!cfg.gistId&&data.id){ setGistCfg({...cfg,gistId:data.id}); updateCloudBtn(); }
     const t=new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
     showSaveStatus(`✓ ${t} GitHub kaydedildi`,'var(--green)');
     return true;
-  }catch(e){ console.warn('Gist kayıt:',e.message); showSaveStatus(`⚠ GitHub: ${e.message}`,'var(--red)'); return false; }
+  }catch(e){
+    window._lastGistError=e.message;
+    console.warn('Gist kayıt:',e.message);
+    showSaveStatus(`💾 Kaydedildi (GitHub bağlanamadı)`,'var(--text3)');
+    return false;
+  }
 }
 
 async function gistLoad(){
@@ -4607,14 +4631,15 @@ async function gistLoad(){
   if(!cfg?.token||!cfg?.gistId) return false;
   try{
     const res=await fetch(`${GIST_API}/${cfg.gistId}`,{headers:{'Authorization':`token ${cfg.token}`,'Accept':'application/vnd.github+json'}});
-    if(res.status===401) throw new Error('401 — Token geçersiz veya süresi dolmuş');
-    if(res.status===403) throw new Error('403 — Token Gist yetkisine sahip değil');
+    if(res.status===401||res.status===403){
+      window._lastGistError=`${res.status} — Token geçersiz veya süresi dolmuş. GitHub Gist ayarlarından token yenileyin.`;
+      return false; // sessizce local'e düş
+    }
     if(res.status===404) throw new Error('404 — Gist ID bulunamadı');
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const data=await res.json();
     const raw=data.files?.[GIST_FILENAME]?.content;
     if(!raw){
-      // Gist var ama dosya adı farklı olabilir — mevcut dosyaları listele
       const fileList=Object.keys(data.files||{}).join(', ');
       throw new Error(`"${GIST_FILENAME}" bulunamadı. Gist'teki dosyalar: ${fileList||'(boş)'}`);
     }
@@ -4671,18 +4696,22 @@ window.switchPage=function(name,el){
 // ── GitHub Gist Ayarları ──────────────────────────────────────────────────────
 window.openCloudSettings=function(){
   const cfg=getGistCfg()||{};
+  const is401=window._lastGistError?.match(/401|403/);
   const html=`<div class="modal" style="width:540px" onclick="event.stopPropagation()">
     <div class="modal-title" style="color:var(--green)">GitHub Gist Senkronizasyonu</div>
+    ${is401?`<div style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--red)">
+      ⚠ <strong>Token geçersiz (401)</strong> — Eski token'ı silip aşağıda yeni token girin. Gist ID'yi koruyun.
+    </div>`:''}
     <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:14px 16px;margin-bottom:18px;line-height:1.9;font-size:12px">
-      <strong style="color:var(--green)">Kurulum (3 adım, 3 dakika)</strong><br>
+      <strong style="color:var(--green)">${is401?'Token Yenileme':'Kurulum'} (3 adım)</strong><br>
       <strong>1.</strong> <a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--accent)">github.com/settings/tokens/new</a> adresine git<br>
-      <strong>2.</strong> Note: "Bütçe" yaz · Expiration: "No expiration" · <strong>Gist</strong> kutusunu işaretle → Generate token<br>
+      <strong>2.</strong> Note: "Bütçe" · Expiration: <strong>No expiration</strong> · <strong>Gist</strong> kutusunu işaretle → Generate token<br>
       <strong>3.</strong> Oluşan token'ı (ghp_...) aşağıya yapıştır → Kaydet<br>
-      <span style="color:var(--text3);font-size:11px">İlk kaydette Gist otomatik oluşur. Gist ID'yi diğer cihazlara da girersiniz.</span>
+      <span style="color:var(--text3);font-size:11px">${is401?'Gist ID değişmeyecek — sadece token yenileniyor.':'İlk kaydette Gist otomatik oluşur.'}</span>
     </div>
     <div class="form-group">
-      <label class="form-label">GitHub Personal Access Token</label>
-      <input class="form-input" id="gh-token" type="password" value="${cfg.token||''}" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-family:var(--mono);font-size:12px">
+      <label class="form-label">GitHub Personal Access Token ${is401?'<span style="color:var(--red);font-size:10px">← Yenile</span>':''}</label>
+      <input class="form-input" id="gh-token" type="password" value="${is401?'':cfg.token||''}" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-family:var(--mono);font-size:12px${is401?';border-color:rgba(248,113,113,.5)':''}">
       <div style="font-size:10px;color:var(--text3);margin-top:4px">Token sadece tarayıcınızda saklanır — yalnızca api.github.com'a gönderilir</div>
     </div>
     <div class="form-group">
@@ -4709,6 +4738,7 @@ window.saveGistSettings=function(){
   const gistId=$('gh-gistid').value.trim();
   if(!token){alert('Token boş olamaz.');return;}
   setGistCfg({token,gistId:gistId||null});
+  window._lastGistError=null; // hata temizle
   updateCloudBtn();
   closeDynModal();
   showSaveStatus(gistId?'GitHub Gist bağlantısı kuruldu ✓':'Token kaydedildi — ilk değişiklikte Gist oluşacak','var(--green)');
@@ -4796,12 +4826,15 @@ if(!window.BANK_MOVEMENTS) window.BANK_MOVEMENTS=[];
   // Gist config exists — try to load
   const gistOk = await gistLoad();
   if(!gistOk){
-    // Gist failed — fall back to local
-    const localOk = localLoad();
-    showSaveStatus('⚠ GitHub bağlanamadı — yerel veri kullanılıyor','var(--amber)');
-    switchPage('ozet', document.querySelector('.nav-item.active'));
-    setTimeout(()=>showGistErrorBanner(), 200);
-    return;
+    localLoad();
+    // 401/403 ise sessiz (token sorunu) — sadece ayarlar butonu sarı yanıp söner
+    if(window._lastGistError?.match(/401|403/)){
+      showSaveStatus('💾 Yerel · GitHub token yenilenmeli (⚙ Ayarlar)','var(--amber)');
+      updateCloudBtn();
+    } else if(window._lastGistError){
+      showSaveStatus('⚠ GitHub bağlanamadı — yerel veri kullanılıyor','var(--amber)');
+      setTimeout(()=>showGistErrorBanner(), 200);
+    }
   }
 
   switchPage('ozet', document.querySelector('.nav-item.active'));
@@ -4832,17 +4865,20 @@ function showGistSetupBanner(){
 function showGistErrorBanner(){
   const content = $('mainContent');
   if(!content) return;
+  if($('gistErrBanner')) $('gistErrBanner').remove();
+  const err = window._lastGistError || 'Bilinmeyen hata';
   const banner = document.createElement('div');
   banner.id = 'gistErrBanner';
-  banner.style.cssText = 'margin-bottom:16px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:14px';
+  banner.style.cssText = 'margin-bottom:16px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:14px;padding:14px 18px;display:flex;align-items:flex-start;gap:14px';
   banner.innerHTML = `
-    <span style="font-size:18px">⚠</span>
-    <div style="flex:1;font-size:12px;color:var(--text2)">
-      GitHub Gist'e bağlanılamadı — yerel veriler gösteriliyor. Token süresi dolmuş veya internet bağlantısı yok olabilir.
+    <span style="font-size:18px;flex-shrink:0">⚠</span>
+    <div style="flex:1;font-size:12px;color:var(--text2);line-height:1.7">
+      <strong style="color:var(--red)">GitHub Gist hatası:</strong> <code style="font-family:var(--mono);font-size:11px;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:4px">${err}</code><br>
+      <span style="color:var(--text3)">Yerel veriler gösteriliyor. Token süresi dolmuşsa yenileyin.</span>
     </div>
-    <div style="display:flex;gap:8px;flex-shrink:0">
-      <button onclick="syncFromGist()" class="btn btn-ghost btn-sm" style="color:var(--teal)">Tekrar Dene</button>
-      <button onclick="openCloudSettings()" class="btn btn-ghost btn-sm">Ayarlar</button>
+    <div style="display:flex;gap:8px;flex-shrink:0;align-items:center">
+      <button onclick="syncFromGist()" class="btn btn-ghost btn-sm" style="color:var(--teal)">↺ Tekrar Dene</button>
+      <button onclick="openCloudSettings()" class="btn btn-ghost btn-sm">⚙ Ayarlar</button>
       <button onclick="this.closest('#gistErrBanner').remove()" class="btn btn-ghost btn-sm" style="padding:5px 8px">✕</button>
     </div>`;
   content.insertBefore(banner, content.firstChild);
