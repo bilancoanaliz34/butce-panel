@@ -994,21 +994,77 @@ function pageOzet(){
   </div>`;
 }
 function pageButce(){
-  const totalP=BUDGET_DATA.reduce((s,b)=>s+b.planned,0);
-  const totalA=BUDGET_DATA.reduce((s,b)=>s+b.actual,0);
+  // Seçili ay indeksi (state'te sakla)
+  if(window._butceAyIdx==null){
+    // Bugünün ayını bul
+    const now=new Date();
+    const idx=MONTH_PERIOD.findIndex(m=>m.mo===now.getMonth()&&m.yr===now.getFullYear());
+    window._butceAyIdx=idx>=0?idx:0;
+  }
+  const selIdx=window._butceAyIdx;
+  const selLabel=MONTH_PERIOD[selIdx]?.label||'';
+
+  // Planlanan: PLAN_EXP_CATS'ten seçili ay
+  const cats=EXP_CATS;
+  const plannedByCat={};
+  cats.forEach(cat=>{
+    const found=PLAN_EXP_CATS.find(c=>c.cat===cat);
+    plannedByCat[cat]=found?Math.round((found.monthly[selIdx]||0)/FX):0;
+  });
+
+  // Gerçekleşen: allTransactions'tan seçili aya ait
+  const actualByCat={};
+  const selMo=MONTH_PERIOD[selIdx]?.mo, selYr=MONTH_PERIOD[selIdx]?.yr;
+  allTransactions.forEach(t=>{
+    if(!t.cat) return;
+    // Tarihi bul
+    let d;
+    if(t.dateISO) d=new Date(t.dateISO);
+    else if(t.billingPeriod){
+      const bp=t.billingPeriod.split(' ');
+      const mo=MN_TR.indexOf(bp[0]);
+      const yr=parseInt(bp[1])||selYr;
+      d=new Date(yr,mo<0?0:mo,1);
+    } else return;
+    if(isNaN(d)) return;
+    if(d.getMonth()!==selMo||d.getFullYear()!==selYr) return;
+    const amt=Math.round((t.try||Math.round((t.usd||0)*(t.rate||FX)))/FX);
+    actualByCat[t.cat]=(actualByCat[t.cat]||0)+amt;
+  });
+
+  // Tüm kategorileri birleştir (planlanan + gerçekleşen)
+  const allCats=[...new Set([...cats, ...Object.keys(actualByCat)])];
+  const rows=allCats.map(cat=>({
+    cat,
+    planned: plannedByCat[cat]||0,
+    actual:  actualByCat[cat]||0,
+  })).filter(r=>r.planned>0||r.actual>0);
+
+  const totalP=rows.reduce((s,r)=>s+r.planned,0);
+  const totalA=rows.reduce((s,r)=>s+r.actual,0);
   const diff=totalA-totalP;
+
+  // Ay seçici HTML
+  const aySelector=`<div style="display:flex;align-items:center;gap:8px">
+    <button onclick="if(window._butceAyIdx>0){window._butceAyIdx--;switchPage('butce',null)}" class="btn btn-ghost btn-sm" style="padding:4px 8px">◀</button>
+    <select class="form-input" style="font-size:12px;padding:4px 10px;width:110px" onchange="window._butceAyIdx=parseInt(this.value);switchPage('butce',null)">
+      ${MONTH_PERIOD.map((m,i)=>`<option value="${i}" ${i===selIdx?'selected':''}>${m.label}</option>`).join('')}
+    </select>
+    <button onclick="if(window._butceAyIdx<MONTH_PERIOD.length-1){window._butceAyIdx++;switchPage('butce',null)}" class="btn btn-ghost btn-sm" style="padding:4px 8px">▶</button>
+  </div>`;
+
   return`
   <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
     <div class="metric c-blue"><div class="m-label">Planlanan</div><div class="m-value">${fmtUSD(totalP)}</div><div class="m-sub">${fmtTRY(totalP*FX)}</div></div>
     <div class="metric c-${diff>0?'red':'green'}"><div class="m-label">Gerçekleşen</div><div class="m-value">${fmtUSD(totalA)}</div><div class="m-sub">${fmtTRY(totalA*FX)}</div></div>
     <div class="metric c-${diff>0?'red':'green'}"><div class="m-label">Sapma</div><div class="m-value" style="color:${diff>0?'var(--red)':'var(--green)'}">${diff>0?'+':''}${fmtUSD(diff)}</div><div class="m-sub">${diff>0?'Bütçe aşıldı':'Dahilinde'}</div></div>
-    <div class="metric c-teal"><div class="m-label">Gerçekleşme</div><div class="m-value">%${Math.round(totalA/totalP*100)}</div><div class="m-sub">Bütçe kullanımı</div></div>
+    <div class="metric c-teal"><div class="m-label">Gerçekleşme</div><div class="m-value">${totalP>0?'%'+Math.round(totalA/totalP*100):'—'}</div><div class="m-sub">Bütçe kullanımı</div></div>
   </div>
   <div class="card" style="margin-bottom:14px">
     <div class="card-header">
-      <div><div class="card-title">Aylık Planlanan vs Gerçekleşen Gider</div><div class="card-sub">6 ay — USD bazlı, tam genişlik</div></div>
+      <div><div class="card-title">Aylık Planlanan vs Gerçekleşen Gider</div><div class="card-sub">USD bazlı</div></div>
       <div style="display:flex;gap:14px;font-size:10px;color:var(--text3)">
-        <span><span style="display:inline-block;width:16px;height:2px;background:rgba(79,142,247,.5);margin-right:5px;vertical-align:middle;border-top:2px dashed #4f8ef7"></span>Planlanan</span>
+        <span><span style="display:inline-block;width:16px;height:2px;background:#4f8ef7;margin-right:5px;vertical-align:middle;border-top:2px dashed #4f8ef7"></span>Planlanan</span>
         <span><span style="display:inline-block;width:16px;height:3px;background:#f87171;margin-right:5px;vertical-align:middle;border-radius:2px"></span>Gerçekleşen</span>
       </div>
     </div>
@@ -1016,25 +1072,31 @@ function pageButce(){
   </div>
   <div class="grid-2">
     <div class="card">
-      <div class="card-header"><div class="card-title">Kategori Detayı</div></div>
+      <div class="card-header">
+        <div><div class="card-title">Kategori Detayı</div><div class="card-sub">${selLabel}</div></div>
+        ${aySelector}
+      </div>
       <div>
-      ${BUDGET_DATA.map(b=>{
-        const pct=Math.min(100,Math.round(b.actual/b.planned*100));
-        const over=b.actual>b.planned;
-        const c=over?'var(--red)':b.actual/b.planned>.85?'var(--amber)':'var(--green)';
+      ${rows.map(r=>{
+        const pct=r.planned>0?Math.min(100,Math.round(r.actual/r.planned*100)):100;
+        const over=r.actual>r.planned;
+        const c=over?'var(--red)':r.actual/Math.max(r.planned,1)>.85?'var(--amber)':'var(--green)';
         return`<div class="budget-row">
-          <div class="br-name">${b.cat}</div>
+          <div class="br-name">${r.cat}</div>
           <div class="br-bar-wrap"><div class="br-bar-planned" style="width:100%"></div><div class="br-bar-actual" style="width:${pct}%;background:${c}"></div></div>
           <div class="br-amounts">
-            <span style="color:${c};font-weight:500">${fmtUSD(b.actual)}</span> <span style="color:var(--text3)">/ ${fmtUSD(b.planned)}</span>
-            <div style="font-size:10px;color:${c}">${over?'▲':'▼'} ${fmtUSD(Math.abs(b.actual-b.planned))}</div>
+            <span style="color:${c};font-weight:500">${fmtUSD(r.actual)}</span> <span style="color:var(--text3)">/ ${fmtUSD(r.planned)}</span>
+            <div style="font-size:10px;color:${c}">${over?'▲':'▼'} ${fmtUSD(Math.abs(r.actual-r.planned))}</div>
           </div>
         </div>`;
       }).join('')}
       </div>
     </div>
     <div class="card">
-      <div class="card-header"><div class="card-title">Kategori Karşılaştırma</div></div>
+      <div class="card-header">
+        <div><div class="card-title">Kategori Karşılaştırma</div><div class="card-sub">${selLabel}</div></div>
+        ${aySelector}
+      </div>
       <div class="chart-wrap" style="height:280px"><canvas id="butceBar"></canvas></div>
     </div>
   </div>`;
@@ -2311,27 +2373,47 @@ function initCharts(page){
     // removed: new Chart($('ozVarlik'),{type:'doughnut',data:{labels:['Banka','Yatırım'],datasets:[{data:[bankV,invV],backgroundColor:['#22d3ee99','#7c5af599'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});
   }
   if(page==='butce'){
-    // Gerçek harcamaları kategoriye göre topla
-    const catActual={};
-    allTransactions.forEach(t=>{
-      if(t.cat) catActual[t.cat]=(catActual[t.cat]||0)+(t.try||Math.round((t.usd||0)*(t.rate||FX)));
-    });
-    // BUDGET_DATA'yı güncelle
-    BUDGET_DATA.forEach(b=>{ b.actual=Math.round((catActual[b.cat]||0)/FX); });
-
-    const liveExpByMonth=getActualByMonth().expByMonth;
+    // Aylık çizgi grafik: tüm MONTH_PERIOD boyunca planlanan vs gerçekleşen
+    const {expByMonth:liveExpByMonth}=getActualByMonth();
     const liveExpUSD=liveExpByMonth.map(v=>Math.round(v/FX));
+    const planExpUSD=MONTH_PERIOD.map((_,i)=>Math.round(PLAN_EXP_CATS.reduce((s,c)=>s+(c.monthly[i]||0),0)/FX));
 
     destroyChart('butceLine');
     new Chart($('butceLine'),{type:'line',data:{labels:MONTHS_LABELS,datasets:[
-      {label:'Planlanan',data:PLAN_EXP_USD,borderColor:'#4f8ef760',borderDash:[6,4],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef760',borderWidth:1.5},
-      {label:'Gerçekleşen',data:liveExpUSD,borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5},
+      {label:'Planlanan',data:planExpUSD,borderColor:'#4f8ef760',borderDash:[6,4],backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef760',borderWidth:1.5},
+      {label:'Gerçekleşen',data:liveExpUSD.map(v=>v||null),borderColor:'#f87171',backgroundColor:'#f8717108',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f87171',borderWidth:2.5,spanGaps:false},
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a'}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+
+    // Bar grafik: seçili ay kategorileri
+    const selIdx=window._butceAyIdx||0;
+    const selMo=MONTH_PERIOD[selIdx]?.mo, selYr=MONTH_PERIOD[selIdx]?.yr;
+    const barCats=EXP_CATS;
+    const barPlanned=barCats.map(cat=>{
+      const found=PLAN_EXP_CATS.find(c=>c.cat===cat);
+      return found?Math.round((found.monthly[selIdx]||0)/FX):0;
+    });
+    const barActual=barCats.map(cat=>{
+      let sum=0;
+      allTransactions.forEach(t=>{
+        if(t.cat!==cat) return;
+        let d;
+        if(t.dateISO) d=new Date(t.dateISO);
+        else if(t.billingPeriod){const bp=t.billingPeriod.split(' ');const mo=MN_TR.indexOf(bp[0]);const yr=parseInt(bp[1])||selYr;d=new Date(yr,mo<0?0:mo,1);}
+        else return;
+        if(isNaN(d)||d.getMonth()!==selMo||d.getFullYear()!==selYr) return;
+        sum+=Math.round((t.try||Math.round((t.usd||0)*(t.rate||FX)))/FX);
+      });
+      return sum;
+    });
+    const activeIdxs=barCats.map((_,i)=>i).filter(i=>barPlanned[i]>0||barActual[i]>0);
     destroyChart('butceBar');
-    new Chart($('butceBar'),{type:'bar',data:{labels:BUDGET_DATA.map(b=>b.cat),datasets:[
-      {label:'Planlanan',data:BUDGET_DATA.map(b=>b.planned),backgroundColor:'#4f8ef730',borderRadius:3,barPercentage:.55,borderWidth:1,borderColor:'#4f8ef760'},
-      {label:'Gerçekleşen',data:BUDGET_DATA.map(b=>b.actual),backgroundColor:BUDGET_DATA.map(b=>b.actual>b.planned?'#f87171bb':'#34d399bb'),borderRadius:3,barPercentage:.55},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
+    new Chart($('butceBar'),{type:'bar',data:{
+      labels:activeIdxs.map(i=>barCats[i]),
+      datasets:[
+        {label:'Planlanan',data:activeIdxs.map(i=>barPlanned[i]),backgroundColor:'#4f8ef730',borderRadius:3,barPercentage:.55,borderWidth:1,borderColor:'#4f8ef760'},
+        {label:'Gerçekleşen',data:activeIdxs.map(i=>barActual[i]),backgroundColor:activeIdxs.map(i=>barActual[i]>barPlanned[i]?'#f87171bb':'#34d399bb'),borderRadius:3,barPercentage:.55},
+      ]
+    },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',font:{size:10}}},y:{grid:{color:G},border:{display:false},ticks:{color:'#555a6a',callback:v=>'$'+v}}}}});
   }
   if(page==='tahmin'){
     const {incByMonth:liveInc2, expByMonth:liveExp2}=getActualByMonth();
